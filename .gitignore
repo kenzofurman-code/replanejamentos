@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Antigravity & IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Large binaries & embedded JRE
+backend/tools/jre17/
+backend/tools/mpxj/
+
+# Database & Caches
+*.db
+*.db-journal
+*.db-wal
+*.pkl
+*.bak
+backend/data/*.pkl
+backend/data/*.bak
+backend/data/*.cache
+backend/data/cache/
+
+# Scratch files
+scratch/
+test_*.py
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store

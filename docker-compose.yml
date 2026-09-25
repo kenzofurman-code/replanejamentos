@@ -1,0 +1,20 @@
+services:
+  replanejamento:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: replanejamentos_app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persists all uploaded projects, schedule versions, and calculations
+      - ./data:/app/backend/data
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PROJECTS_DIR=/app/backend/data/projects
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/projects"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

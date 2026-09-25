@@ -1,0 +1,15 @@
+.git
+.gitignore
+.env
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.log
+.gemini
+scratch
+backend/data/cache/*
+!backend/data/templates/Modelo_Padrao_Replanejamento.xlsx
+!backend/data/projects/exemplo_padrao/*
