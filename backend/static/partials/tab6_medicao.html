@@ -1,0 +1,226 @@
+    <!-- TAB 6: MEDIÇÃO MULTINÍVEL (COM COLUNAS M1..MN, ACUMULADO CALCULADO E ACCORDION N6) -->
+    <template x-if="activeTab === 'medicao'">
+      <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+        <div class="p-3 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center space-x-2">
+              <h3 class="font-bold text-slate-900 text-xs">Medição Multinível (Nível 5 & Nível 6)</h3>
+              <span class="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full font-bold">
+                Acumulado até Medição <span x-text="cutoffMedNum"></span>
+              </span>
+            </div>
+            <p class="text-[10px] text-slate-500">Edição direta nas colunas mensais (M1..MN). O acumulado realizado e o saldo são 100% calculados automaticamente.</p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <div x-data="{ vbDomain: 'medicao' }">
+<!-- @include partials/version_bar.html -->
+            </div>
+            <!-- Level Filter Quick Buttons -->
+            <div class="flex items-center space-x-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-semibold">
+              <span class="text-[10px] text-slate-400 px-1 uppercase font-bold">Nível:</span>
+              <button 
+                @click="levelFilterMed = 3" 
+                :class="levelFilterMed === 3 ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                class="px-2 py-0.5 rounded transition">
+                Até Nível 3
+              </button>
+              <button 
+                @click="levelFilterMed = 4" 
+                :class="levelFilterMed === 4 ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                class="px-2 py-0.5 rounded transition">
+                Até Nível 4
+              </button>
+              <button 
+                @click="levelFilterMed = 0" 
+                :class="levelFilterMed === 0 ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                class="px-2 py-0.5 rounded transition">
+                Todos (N5 + N6)
+              </button>
+            </div>
+
+            <input 
+              type="text" 
+              x-model="searchMed" 
+              placeholder="Filtrar medição..." 
+              class="bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-xs w-44 outline-none">
+
+            <button 
+              x-show="hasCustomMonthly()"
+              @click="resetCustomMonthly()" 
+              class="text-[11px] px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold border border-slate-300 transition">
+              Restaurar
+            </button>
+
+            <button 
+              @click="recalculateWithCustomMeasurements()" 
+              class="flex items-center space-x-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-2.5 py-1 rounded-lg transition shadow-xs">
+              <i data-lucide="calculator" class="w-3.5 h-3.5"></i>
+              <span>Aplicar & Recalcular Saldo</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Active Month Filter Banner -->
+        <div x-show="selectedFilterMonths.length > 0" class="mx-3 my-2 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 text-xs text-blue-900">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="filter" class="w-3.5 h-3.5 text-blue-600 shrink-0"></i>
+            <span>Filtrando por mês(es): <strong class="font-bold text-blue-800" x-text="getMonthFilterLabel()"></strong> (<span x-text="displayMedRows.length"></span> linhas ativas)</span>
+          </div>
+          <button @click="clearMonthFilter()" class="flex items-center space-x-1 text-[11px] font-bold text-blue-700 hover:text-blue-900 bg-white border border-blue-300 rounded px-2 py-0.5 transition hover:bg-blue-100/60 shadow-2xs">
+            <span>Limpar Filtro</span>
+            <i data-lucide="x" class="w-3 h-3"></i>
+          </button>
+        </div>
+
+        <div class="overflow-x-auto max-h-[600px] 2xl:max-h-[750px] scrollbar-thin">
+          <table class="w-full text-left table-compact border-separate border-spacing-0">
+            <thead class="bg-slate-900 text-white sticky top-0 z-20">
+              <!-- Row 1: Column Titles -->
+              <tr class="h-[34px]">
+                <th class="py-1 px-2 w-10 min-w-[40px] max-w-[40px] text-center border-b border-r border-slate-800 sticky top-0 left-0 z-40 bg-slate-900 h-[34px] box-border">Nív</th>
+                <th class="py-1 px-2 w-28 min-w-[110px] max-w-[110px] border-b border-r border-slate-800 sticky top-0 left-[40px] z-40 bg-slate-900 h-[34px] box-border">Código</th>
+                <th class="py-1 px-3 w-[280px] min-w-[280px] max-w-[280px] border-b border-r border-slate-800 sticky top-0 left-[150px] z-40 bg-slate-900 h-[34px] box-border">Descrição / Tarefa</th>
+                <th class="py-1 px-2 w-28 min-w-[110px] max-w-[110px] text-right border-b border-r border-slate-800 sticky top-0 left-[430px] z-40 bg-slate-900 h-[34px] box-border">Orçado (R$)</th>
+                <th class="py-1 px-2 w-20 min-w-[80px] max-w-[80px] text-right border-b border-r border-slate-800 text-emerald-400 sticky top-0 left-[540px] z-40 bg-slate-900 h-[34px] box-border">Acum. Real. (%)</th>
+                <th class="py-1 px-2 w-28 min-w-[110px] max-w-[110px] text-right border-b border-r border-slate-800 text-emerald-400 sticky top-0 left-[620px] z-40 bg-slate-900 h-[34px] box-border">Acum. Real. (R$)</th>
+                <th class="py-1 px-2 w-28 min-w-[110px] max-w-[110px] text-right border-b border-r border-slate-800 text-blue-300 sticky top-0 left-[730px] z-40 bg-slate-900 sticky-shadow-header-r h-[34px] box-border">Saldo a Medir</th>
+                
+                <!-- All Monthly Columns M1..MN -->
+                <template x-for="c in replanResult?.cycles" :key="c.num">
+                  <th 
+                    @click="toggleMonthFilter(c.num)" 
+                    :class="isMonthFilterActive(c.num) ? 'bg-blue-600 text-white ring-2 ring-blue-300 font-extrabold cursor-pointer' : (c.num <= cutoffMedNum ? 'bg-slate-900 text-emerald-300 hover:bg-slate-800 cursor-pointer' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 cursor-pointer')"
+                    :title="'Clique para filtrar atividades medidas em ' + (c.period_label || c.name)"
+                    class="py-1 px-2 text-right min-w-[75px] border-b border-r border-slate-800 leading-tight transition-colors select-none group sticky top-0 z-30 bg-slate-900 h-[34px] box-border">
+                    <div class="flex items-center justify-end space-x-1">
+                      <i data-lucide="filter" x-show="isMonthFilterActive(c.num)" class="w-2.5 h-2.5 text-amber-300 shrink-0"></i>
+                      <span class="block font-bold text-[11px]" x-text="'M' + c.num"></span>
+                    </div>
+                    <span class="block text-[9px] font-normal" :class="isMonthFilterActive(c.num) ? 'text-blue-100' : (c.num <= cutoffMedNum ? 'text-emerald-400' : 'text-slate-400')" x-text="c.period_label"></span>
+                  </th>
+                </template>
+              </tr>
+              <!-- Row 2: Level 1 Totalizer (Pinned) -->
+              <tr class="h-8">
+                <th class="py-0.5 px-2 text-center border-b border-r border-neutral-800 sticky top-[34px] left-0 z-35 sticky-level-1 w-10 min-w-[40px] max-w-[40px] font-bold h-8 box-border">1</th>
+                <th class="py-0.5 px-2 font-mono text-[10px] border-b border-r border-neutral-800 sticky top-[34px] left-[40px] z-35 sticky-level-1 w-28 min-w-[110px] max-w-[110px] font-bold h-8 box-border text-left" x-text="level1MedRow?.code || '1'"></th>
+                <th class="py-0.5 px-3 border-b border-r border-neutral-800 sticky top-[34px] left-[150px] z-35 sticky-level-1 w-[280px] min-w-[280px] max-w-[280px] font-bold h-8 box-border text-left">
+                  <div class="truncate" x-text="level1MedRow?.description || 'Platea 19 / Total Geral da Obra'"></div>
+                </th>
+                <th class="py-0.5 px-2 text-right border-b border-r border-neutral-800 sticky top-[34px] left-[430px] z-35 sticky-level-1 w-28 min-w-[110px] max-w-[110px] font-bold h-8 box-border" x-text="formatCurrency(level1MedRow?.budget || replanResult?.total_budget)"></th>
+                <th class="py-0.5 px-2 text-right border-b border-r border-neutral-800 sticky top-[34px] left-[540px] z-35 sticky-level-1 w-20 min-w-[80px] max-w-[80px] font-bold text-emerald-400 h-8 box-border" x-text="(replanResult?.total_measured_pct || 0).toFixed(2) + '%'"></th>
+                <th class="py-0.5 px-2 text-right border-b border-r border-neutral-800 sticky top-[34px] left-[620px] z-35 sticky-level-1 w-28 min-w-[110px] max-w-[110px] font-bold text-emerald-400 h-8 box-border" x-text="formatCurrency(replanResult?.total_measured)"></th>
+                <th class="py-0.5 px-2 text-right border-b border-r border-neutral-800 sticky top-[34px] left-[730px] z-35 sticky-level-1 w-28 min-w-[110px] max-w-[110px] font-bold text-blue-300 sticky-shadow-header-r h-8 box-border" x-text="formatCurrency(replanResult?.total_balance)"></th>
+                <template x-for="c in replanResult?.cycles" :key="c.num">
+                  <th class="py-0.5 px-2 text-right min-w-[75px] border-b border-r border-neutral-800 sticky top-[34px] z-25 bg-black text-white font-bold h-8 box-border">
+                    <span class="text-[10px] font-bold" :class="c.num <= cutoffMedNum ? 'text-emerald-300' : 'text-slate-400'" x-text="level1MedRow ? getRollupMonthPct(level1MedRow, c.num) : '-'"></span>
+                  </th>
+                </template>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+              <template x-for="row in paginatedMedRows" :key="row._rowKey">
+                <tr class="group" :class="row.isL6 ? 'row-level-6' : getLevelRowClass(row.level)">
+                  
+                  <!-- Col 1: Nível -->
+                  <td class="py-0.5 px-2 text-center border-b border-r sticky left-0 z-10 w-10 min-w-[40px] max-w-[40px]" 
+                      :class="row.isL6 ? 'sticky-level-6 font-bold text-blue-600' : getLevelStickyClass(row.level)" 
+                      x-text="row.isL6 ? '6' : row.level"></td>
+                  
+                  <!-- Col 2: Código -->
+                  <td class="py-0.5 px-2 font-mono text-[10px] border-b border-r sticky left-[40px] z-10 w-28 min-w-[110px] max-w-[110px]" 
+                      :class="row.isL6 ? 'sticky-level-6 text-slate-400 text-[9px]' : getLevelStickyClass(row.level)" 
+                      x-text="row.isL6 ? '↳ Tarefa' : row.code"></td>
+                  
+                  <!-- Col 3: Descrição + Botão Nível 6 -->
+                  <td class="py-0.5 px-3 border-b border-r sticky left-[150px] z-10 w-[280px] min-w-[280px] max-w-[280px]" 
+                      :class="row.isL6 ? 'sticky-level-6' : getLevelStickyClass(row.level)"
+                      :style="row.isL6 ? 'padding-left: 2rem;' : 'padding-left: ' + ((row.level-1)*12 + 8) + 'px'">
+                    <div class="flex items-center justify-between" x-show="!row.isL6">
+                      <span class="truncate" :title="row.description" x-text="row.description"></span>
+                      <template x-if="!row.isL6 && row.level === 5 && row.tasks_l6 && row.tasks_l6.length > 0">
+                        <button 
+                          @click="toggleExpandL5(row.code)"
+                          class="text-[9px] px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold border border-blue-200 ml-1.5 transition shrink-0">
+                          <span x-text="expandedL5[row.code] ? '▼ Ocultar' : ('▶ N6 (' + (row.tasks_l6 ? row.tasks_l6.length : 0) + ')')"></span>
+                        </button>
+                      </template>
+                    </div>
+                    <div class="flex items-center" x-show="row.isL6">
+                      <span class="text-blue-500 font-bold mr-1 shrink-0">↳</span>
+                      <span class="font-medium text-slate-800 text-[10px] truncate" :title="row.task_name" x-text="row.task_name"></span>
+                    </div>
+                  </td>
+
+                  <!-- Col 4: Orçado (R$) ou Duração -->
+                  <td class="py-0.5 px-2 text-right border-b border-r font-semibold sticky left-[430px] z-10 w-28 min-w-[110px] max-w-[110px]" 
+                      :class="row.isL6 ? 'sticky-level-6 text-slate-500' : getLevelStickyClass(row.level)"
+                      x-text="row.isL6 ? (row.duration + ' d') : formatCurrency(row.total_price)"></td>
+                  
+                  <!-- Col 5: Acumulado Realizado (%) ou Peso (%) -->
+                  <td class="py-0.5 px-2 text-right border-b border-r font-bold sticky left-[540px] z-10 w-20 min-w-[80px] max-w-[80px]" 
+                      :class="row.isL6 ? 'sticky-level-6 text-amber-700 text-[10px]' : [getLevelStickyClass(row.level), row.level <= 3 ? 'text-emerald-300' : 'text-emerald-700']" 
+                      x-text="row.isL6 ? (row.weight_pct.toFixed(2) + '%') : (getEffectiveL5AccumPct(row).toFixed(2) + '%')"></td>
+                  
+                  <!-- Col 6: Acumulado Realizado (R$) ou Rótulo -->
+                  <td class="py-0.5 px-2 text-right border-b border-r sticky left-[620px] z-10 w-28 min-w-[110px] max-w-[110px]" 
+                      :class="row.isL6 ? 'sticky-level-6 text-slate-400 text-[9px] italic' : [getLevelStickyClass(row.level), row.level <= 3 ? 'text-emerald-200' : 'font-semibold text-emerald-800']" 
+                      x-text="row.isL6 ? 'peso na linha' : formatCurrency(row.total_price * (getEffectiveL5AccumPct(row) / 100))"></td>
+
+                  <!-- Col 7: Saldo a Medir (R$) (Last frozen column) -->
+                  <td class="py-0.5 px-2 text-right border-b border-r font-semibold sticky left-[730px] z-10 w-28 min-w-[110px] max-w-[110px] sticky-shadow-r" 
+                      :class="row.isL6 ? 'sticky-level-6 text-slate-400' : [getLevelStickyClass(row.level), row.level <= 3 ? 'text-blue-200' : 'text-blue-700']"
+                      x-text="row.isL6 ? '-' : formatCurrency(Math.max(0, row.total_price - (row.total_price * (getEffectiveL5AccumPct(row) / 100))))"></td>
+
+                  <!-- Colunas Mensais (M1..MN) -->
+                  <template x-for="c in replanResult?.cycles" :key="c.num">
+                    <td class="py-0.5 px-1 text-right border-b border-r border-slate-200"
+                        :class="row.isL6 && getL6MonthPct(row, c.num) > 0 ? 'bg-blue-50/50' : ''">
+                      <template x-if="row.isL6">
+                        <input 
+                          type="number" 
+                          step="0.5" 
+                          min="0" 
+                          max="100" 
+                          :value="getL6MonthPct(row, c.num)" 
+                          @change="onMonthInputL6(row.parent_code, row.task_name, c.num, $event.target.value)" 
+                          :class="getL6MonthPct(row, c.num) > 0 ? 'bg-blue-100 text-blue-900 border-blue-400 font-bold' : 'bg-white text-slate-700 border-amber-300 font-semibold'"
+                          class="w-14 text-right text-[10px] rounded px-1 py-0.5 border focus:border-blue-500 outline-none transition-colors">
+                      </template>
+                      <template x-if="!row.isL6 && row.level === 5">
+                        <input 
+                          type="number" 
+                          step="0.1" 
+                          min="0" 
+                          max="100" 
+                          :value="getL5MonthPct(row, c.num)" 
+                          @change="onMonthInputL5(row.code, c.num, $event.target.value)" 
+                          :class="c.num <= cutoffMedNum ? 'bg-emerald-50 text-emerald-800 font-bold border-emerald-300' : 'bg-white text-slate-700 border-slate-300'" 
+                          class="w-14 text-right text-[10px] rounded px-1 py-0.5 border focus:border-blue-500 outline-none">
+                      </template>
+                      <template x-if="!row.isL6 && row.level < 5">
+                        <span 
+                          class="text-[10px] font-medium" 
+                          :class="row.level <= 3 ? 'text-white' : 'text-slate-600'"
+                          x-text="getRollupMonthPct(row, c.num)">
+                        </span>
+                      </template>
+                    </td>
+                  </template>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <!-- Rolagem infinita: o marcador carrega mais linhas quando fica visível -->
+          <div x-init="observeMore($el, 'medPage', () => displayMedRows.length)" class="h-1"></div>
+        </div>
+
+        <div class="p-2 border-t border-slate-200 text-xs text-slate-600 bg-slate-50">
+          Mostrando <span class="font-bold" x-text="Math.min(medPage * medPageSize, displayMedRows.length)"></span> de
+          <span class="font-bold" x-text="displayMedRows.length"></span> linhas
+          <span x-show="medPage * medPageSize < displayMedRows.length" class="text-slate-400">· role para carregar mais</span>
+        </div>
+      </div>
+    </template>
+

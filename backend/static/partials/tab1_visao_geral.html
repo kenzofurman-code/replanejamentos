@@ -1,0 +1,84 @@
+    <!-- TAB 1: VISÃO GERAL & CURVA S -->
+    <div x-show="activeTab === 'dashboard'" class="space-y-4">
+      <!-- KPI Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <!-- Total Budget -->
+        <div class="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex items-center justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Orçamento Total</p>
+            <h2 class="text-lg font-bold text-slate-900 mt-0.5" x-text="formatCurrency(replanResult?.total_budget)"></h2>
+            <span class="text-[10px] text-slate-500 font-medium">100% Linha de Base</span>
+          </div>
+          <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+            <i data-lucide="layers" class="w-4 h-4"></i>
+          </div>
+        </div>
+
+        <!-- Total Realized -->
+        <div class="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex items-center justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Realizado Acumulado</p>
+            <h2 class="text-lg font-bold text-emerald-600 mt-0.5" x-text="formatCurrency(replanResult?.total_measured)"></h2>
+            <span class="text-[10px] text-emerald-700 font-bold" x-text="(replanResult?.total_measured_pct || 0) + '% até Medição ' + (cutoffMedNum || '')"></span>
+          </div>
+          <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+          </div>
+        </div>
+
+        <!-- Total Balance to Replan -->
+        <div class="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex items-center justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Saldo a Replanejar</p>
+            <h2 class="text-lg font-bold text-blue-600 mt-0.5" x-text="formatCurrency(replanResult?.total_balance)"></h2>
+            <span class="text-[10px] text-blue-700 font-bold" x-text="(replanResult?.total_balance_pct || 0) + '% restante'"></span>
+          </div>
+          <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+            <i data-lucide="trending-up" class="w-4 h-4"></i>
+          </div>
+        </div>
+
+        <!-- Cutoff Date -->
+        <div class="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex items-center justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Corte do Replanejamento</p>
+            <h2 class="text-base font-bold text-slate-900 mt-0.5" x-text="replanResult?.cutoff_date || '-'"></h2>
+            <span class="text-[10px] text-slate-500 font-medium" x-text="'Ciclo Dia ' + cycleStartDay + ' ao ' + computedCycleEndDayLabel"></span>
+          </div>
+          <div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+            <i data-lucide="scissors" class="w-4 h-4"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Curva S Comparativa (Chart.js - Canvas is persistent in DOM) -->
+      <div class="bg-white rounded-xl p-4 shadow-xs border border-slate-200">
+        <div class="flex flex-wrap items-center justify-between mb-3 gap-2">
+          <div>
+            <h3 class="font-bold text-slate-900 text-xs">Curva S Comparativa (Linha de Base x Realizado x Replanejado)</h3>
+            <p class="text-[11px] text-slate-500">Histórico medido blindado até o corte e saldo distribuído no futuro</p>
+          </div>
+          
+          <!-- Curve Visibility Toggles -->
+          <div class="flex items-center space-x-3 text-xs font-semibold">
+            <label class="flex items-center space-x-1 cursor-pointer">
+              <input type="checkbox" x-model="curveVisibility.baseline" @change="updateChartVisibility()" class="rounded text-slate-700">
+              <span class="text-slate-600">Base Prevista</span>
+            </label>
+            <label class="flex items-center space-x-1 cursor-pointer">
+              <input type="checkbox" x-model="curveVisibility.realized" @change="updateChartVisibility()" class="rounded text-emerald-600">
+              <span class="text-emerald-700">Realizado</span>
+            </label>
+            <label class="flex items-center space-x-1 cursor-pointer">
+              <input type="checkbox" x-model="curveVisibility.replan" @change="updateChartVisibility()" class="rounded text-blue-600">
+              <span class="text-blue-700">Replanejado</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="relative h-[360px] w-full">
+          <canvas id="curvaSChart"></canvas>
+        </div>
+      </div>
+    </div>
+

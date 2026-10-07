@@ -11,6 +11,7 @@ venv/
 # Antigravity & IDE
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 
@@ -31,7 +32,10 @@ backend/data/cache/
 
 # Scratch files
 scratch/
-test_*.py
+/test_*.py
+backend/test_api.py
+
+
 
 # OS
 Thumbs.db

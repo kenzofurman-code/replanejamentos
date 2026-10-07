@@ -1,0 +1,156 @@
+  <!-- Modal: Vincular / Editar Atividade do Cronograma (Nível 6) -->
+  <div 
+    x-show="showLinkModal" 
+    x-cloak 
+    class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+    @keydown.escape.window="showLinkModal = false">
+    <div class="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 p-6 space-y-4" @click.outside="showLinkModal = false">
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+            <i data-lucide="link" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-900 text-sm" x-text="linkModalIndex >= 0 ? 'Editar Vínculo da Tarefa' : 'Vincular Atividade do Cronograma'"></h3>
+            <p class="text-[11px] text-slate-500">
+              Item de Orçamento: <span class="font-mono font-bold text-slate-800" x-text="linkTargetL5Code"></span> - <span class="font-semibold text-slate-700" x-text="linkTargetL5Desc"></span>
+            </p>
+          </div>
+        </div>
+        <button @click="showLinkModal = false" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Current Link Info if editing -->
+      <template x-if="linkModalIndex >= 0 && linkCurrentTaskName">
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between text-xs">
+          <div>
+            <span class="text-[10px] text-slate-400 font-bold uppercase">Vínculo Atual:</span>
+            <p class="font-semibold text-slate-800" x-text="linkCurrentTaskName"></p>
+          </div>
+          <span class="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">Em Edição</span>
+        </div>
+      </template>
+
+      <!-- Search & Filter Options -->
+      <div class="space-y-2 text-xs">
+        <div class="flex items-center space-x-2">
+          <div class="relative flex-1">
+            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5"></i>
+            <input 
+              type="text" 
+              x-model="linkSearch" 
+              placeholder="Buscar tarefa por nome, ID ou EDT (WBS)..." 
+              class="w-full bg-slate-50 border border-slate-300 rounded-lg pl-8 pr-3 py-2 text-xs outline-none focus:border-blue-500 focus:bg-white transition">
+          </div>
+          <!-- Filter type pills -->
+          <div class="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 font-semibold text-[11px] shrink-0">
+            <button 
+              @click="linkTypeFilter = 'all'" 
+              :class="linkTypeFilter === 'all' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+              class="px-2 py-1 rounded transition">
+              Todos
+            </button>
+            <button 
+              @click="linkTypeFilter = 'groups'" 
+              :class="linkTypeFilter === 'groups' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+              class="px-2 py-1 rounded transition">
+              Grupos
+            </button>
+            <button 
+              @click="linkTypeFilter = 'tasks'" 
+              :class="linkTypeFilter === 'tasks' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+              class="px-2 py-1 rounded transition">
+              Tarefas
+            </button>
+          </div>
+        </div>
+
+        <!-- Scrollable Task Selection Table -->
+        <div class="border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto scrollbar-thin">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead class="bg-slate-100 text-slate-700 sticky top-0 font-bold border-b border-slate-200 text-[11px]">
+              <tr>
+                <th class="py-1.5 px-2 w-10 text-center">Sel.</th>
+                <th class="py-1.5 px-2 w-14 text-center">ID</th>
+                <th class="py-1.5 px-2 w-16 text-center">EDT</th>
+                <th class="py-1.5 px-3 min-w-[220px]">Atividade</th>
+                <th class="py-1.5 px-2 text-center w-16">Duração</th>
+                <th class="py-1.5 px-2 text-center w-20">Tipo</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <template x-for="t in filteredLinkTasks" :key="t.id">
+                <tr 
+                  @click="onLinkTaskSelected(t)" 
+                  :class="selectedLinkTaskId === String(t.id) ? 'bg-blue-50/80 border-blue-300 font-semibold' : 'hover:bg-slate-50 cursor-pointer'"
+                  class="transition">
+                  <td class="py-1.5 px-2 text-center">
+                    <input type="radio" :value="String(t.id)" x-model="selectedLinkTaskId" class="text-blue-600">
+                  </td>
+                  <td class="py-1.5 px-2 text-center font-mono text-[10px] text-slate-500" x-text="t.id"></td>
+                  <td class="py-1.5 px-2 text-center font-mono text-[10px] text-slate-500" x-text="t.wbs || t.outline || '-'"></td>
+                  <td class="py-1.5 px-3" :style="'padding-left: ' + (((t.outline_level || 1) - 1) * 12 + 10) + 'px'">
+                    <span x-show="t.is_summary" class="inline-flex items-center mr-1 text-amber-600">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+                    </span>
+                    <span :class="t.is_summary ? 'font-bold text-slate-900' : 'text-slate-800'" x-text="t.name"></span>
+                  </td>
+                  <td class="py-1.5 px-2 text-center font-mono text-slate-600 text-[10px]" x-text="t.duration + ' d'"></td>
+                  <td class="py-1.5 px-2 text-center">
+                    <span 
+                      :class="t.is_summary ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-blue-50 text-blue-700 border-blue-200'"
+                      class="text-[9px] px-1.5 py-0.5 rounded-full font-bold border" 
+                      x-text="t.is_summary ? 'Grupo' : 'Tarefa'">
+                    </span>
+                  </td>
+                </tr>
+              </template>
+              <template x-if="!filteredLinkTasks.length">
+                <tr>
+                  <td colspan="6" class="text-center py-6 text-slate-400 italic">Nenhuma atividade encontrada com o filtro especificado.</td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Selected Group Leaf Expansion Preview Callout -->
+        <template x-if="selectedTaskIsGroup && selectedGroupLeaves.length > 0">
+          <div class="bg-amber-50/70 border border-amber-300 rounded-xl p-3 space-y-2">
+            <div class="flex items-center space-x-2 text-amber-800 font-bold text-xs">
+              <i data-lucide="layers" class="w-4 h-4 text-amber-600"></i>
+              <span>Vínculo de Grupo Inteligente Selecionado</span>
+            </div>
+            <p class="text-[11px] text-amber-900">
+              O grupo selecionado contém <strong x-text="selectedGroupLeaves.length"></strong> atividades filhas executáveis. Todas serão vinculadas a este item de orçamento:
+            </p>
+            <div class="max-h-28 overflow-y-auto space-y-1 pr-1 scrollbar-thin">
+              <template x-for="leaf in selectedGroupLeaves" :key="leaf.id">
+                <div class="bg-white/80 border border-amber-200 rounded px-2 py-1 flex items-center justify-between text-[11px]">
+                  <span class="truncate font-medium text-slate-800" x-text="'#' + leaf.id + ' - ' + leaf.name"></span>
+                  <span class="text-[10px] font-mono font-bold text-slate-600 shrink-0 ml-2" x-text="leaf.duration + 'd'"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Footer Buttons -->
+      <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100">
+        <button @click="showLinkModal = false" class="px-3.5 py-1.5 rounded-lg border border-slate-300 text-slate-600 font-semibold hover:bg-slate-50 text-xs">
+          Cancelar
+        </button>
+        <button 
+          @click="confirmLinkModal()" 
+          :disabled="!selectedLinkTaskId"
+          class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-sm disabled:opacity-40 flex items-center space-x-1.5">
+          <i data-lucide="check" class="w-3.5 h-3.5"></i>
+          <span>Confirmar Vínculo</span>
+        </button>
+      </div>
+    </div>
+  </div>

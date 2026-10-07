@@ -1,0 +1,62 @@
+    [x-cloak] { display: none !important; }
+    .scrollbar-thin::-webkit-scrollbar { height: 6px; width: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: #f1f5f9; }
+    
+    /* Compact Table Typography */
+    .table-compact th { font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em; }
+    .table-compact td { font-size: 11px; }
+    .table-compact input { font-size: 11px; }
+    
+    /* Sticky Header & Columns */
+    .sticky-col-code { position: sticky; left: 0; z-index: 10; background: inherit; }
+    .sticky-col-desc { position: sticky; left: 110px; z-index: 10; background: inherit; }
+    .sticky-shadow-r { box-shadow: 4px 0 8px -2px rgba(0, 0, 0, 0.12); }
+    .sticky-shadow-header-r { box-shadow: 4px 0 8px -2px rgba(0, 0, 0, 0.35); }
+    
+    /* WBS Level Hierarchy Color Scheme (as requested from image) */
+    .row-level-1 { background-color: #000000 !important; color: #ffffff !important; font-weight: 700; }
+    .row-level-2 { background-color: #455358 !important; color: #ffffff !important; font-weight: 700; }
+    .row-level-3 { background-color: #969696 !important; color: #ffffff !important; font-weight: 600; }
+    .row-level-4 { background-color: #9daf94 !important; color: #000000 !important; font-weight: 600; }
+    .row-level-5 { background-color: #f4f4f4 !important; color: #000000 !important; font-weight: 600; }
+    .row-level-6 { background-color: #ffffff !important; color: #334155 !important; }
+
+    /* Sticky Cell Hierarchy Backgrounds (ensuring 100% opaque frozen columns) */
+    .sticky-level-1 { background-color: #000000 !important; color: #ffffff !important; }
+    .sticky-level-2 { background-color: #455358 !important; color: #ffffff !important; }
+    .sticky-level-3 { background-color: #969696 !important; color: #ffffff !important; }
+    .sticky-level-4 { background-color: #9daf94 !important; color: #000000 !important; }
+    .sticky-level-5 { background-color: #f4f4f4 !important; color: #000000 !important; }
+    .sticky-level-6 { background-color: #ffffff !important; color: #334155 !important; }
+
+    /* Borders matching each level */
+    .row-level-1 > td { border-color: #262626 !important; }
+    .row-level-2 > td { border-color: #55656c !important; }
+    .row-level-3 > td { border-color: #858585 !important; }
+    .row-level-4 > td { border-color: #889a7f !important; }
+    .row-level-5 > td { border-color: #e2e8f0 !important; }
+    .row-level-6 > td { border-color: #e2e8f0 !important; }
+
+    /* Row Hover Enhancements */
+    .row-level-1:hover { filter: brightness(1.2); }
+    .row-level-2:hover { filter: brightness(1.15); }
+    .row-level-3:hover { filter: brightness(1.1); }
+    .row-level-4:hover { filter: brightness(1.05); }
+    .row-level-5:hover { background-color: #eaeaea !important; }
+    .row-level-5:hover > td.sticky { background-color: #eaeaea !important; }
+    .row-level-6:hover { background-color: #f0f7ff !important; }
+    .row-level-6:hover > td.sticky { background-color: #f0f7ff !important; }
+
+    /* Level 6 Month Cell with Value (Azul bem clarinho) */
+    .cell-l6-has-val {
+      background-color: #dbeafe !important; /* bg-blue-100 */
+      color: #1e40af !important;           /* text-blue-800 */
+      font-weight: 700 !important;
+    }
+
+    /* Gantt & LOB Drag cursors */
+    .cursor-ew-resize { cursor: ew-resize; }
+    .cursor-grab { cursor: grab; }
+    .cursor-grabbing { cursor: grabbing; }
+    .cursor-crosshair { cursor: crosshair; }

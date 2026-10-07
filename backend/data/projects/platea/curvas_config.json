@@ -1,0 +1,145 @@
+{
+  "01.01": {
+    "code": "01.01",
+    "description": "SERVIÇOS DE SUPORTE A PRODUÇÃO",
+    "material_pct": 60.0,
+    "labor_pct": 40.0,
+    "anticipation_days": 15,
+    "distribution_type": "continuo",
+    "num_batches": null,
+    "payment_terms": "28",
+    "labor_payment_day": 5
+  },
+  "01.02": {
+    "code": "01.02",
+    "description": "SERVIÇOS INICIAIS",
+    "material_pct": 60.0,
+    "labor_pct": 40.0,
+    "anticipation_days": 15,
+    "distribution_type": "continuo",
+    "num_batches": null,
+    "payment_terms": "28",
+    "labor_payment_day": 5
+  },
+  "01.03": {
+    "code": "01.03",
+    "description": "INFRAESTRUTURA",
+    "material_pct": 60.0,
+    "labor_pct": 40.0,
+    "anticipation_days": 15,
+    "distribution_type": "continuo",
+    "num_batches": null,
+    "payment_terms": "28",
+    "labor_payment_day": 5
+  },
+  "01.04": {
+    "code": "01.04",
+    "description": "SUPRAESTRUTURA",
+    "material_pct": 60.0,
+    "labor_pct": 40.0,
+    "anticipation_days": 15,
+    "distribution_type": "continuo",
+    "num_batches": null,
+    "payment_terms": "28",
+    "labor_payment_day": 5
+  },
+  "01.05": {
+    "code": "01.05",
+    "description": "PAREDES E ELEMENTOS DIVISÓRIOS",
+    "material_pct": 60.0,
+    "labor_pct": 40.0,
+    "anticipation_days": 15,
+    "distribution_type": "continuo",
+    "num_batches": null,
+    "payment_terms": "28",
+    "labor_payment_day": 5
+  },
+  "01.06": {
+    "code": "01.06",
+    "description": "COBERTURAS PROTEÇÕES E IMPERMEABILIZAÇÕES",
+    "material_pct": 60.0,
+    "labor_pct": 40.0,
+    "anticipation_days": 15,
+    "distribution_type": "continuo",
+    "num_batches": null,
+    "payment_terms": "28",
+    "labor_payment_day": 5
+  },
+  "01.07": {
+    "code": "01.07",
+    "description": "REVESTIMENTOS",
+    "material_pct": 60.0,
+    "labor_pct": 40.0,
+    "anticipation_days": 15,
+    "distribution_type": "continuo",
+    "num_batches": null,
+    "payment_terms": "28",
+    "labor_payment_day": 5
+  },
+  "01.08": {
+    "code": "01.08",
+    "description": "INSTALACOES E APARELHOS",
+    "material_pct": 60.0,
+    "labor_pct": 40.0,
+    "anticipation_days": 15,
+    "distribution_type": "continuo",
+    "num_batches": null,
+    "payment_terms": "28",
+    "labor_payment_day": 5
+  },
+  "01.09": {
+    "code": "01.09",
+    "description": "COMPLEMENTACAO DA OBRA",
+    "material_pct": 60.0,
+    "labor_pct": 40.0,
+    "anticipation_days": 15,
+    "distribution_type": "continuo",
+    "num_batches": null,
+    "payment_terms": "28",
+    "labor_payment_day": 5
+  },
+  "01.10": {
+    "code": "01.10",
+    "description": "COMPLEMENTACAO E PAISAGISMO",
+    "material_pct": 60.0,
+    "labor_pct": 40.0,
+    "anticipation_days": 15,
+    "distribution_type": "continuo",
+    "num_batches": null,
+    "payment_terms": "28",
+    "labor_payment_day": 5
+  },
+  "01.11": {
+    "code": "01.11",
+    "description": "PERSONALIZAÇÃO",
+    "material_pct": 60.0,
+    "labor_pct": 40.0,
+    "anticipation_days": 15,
+    "distribution_type": "continuo",
+    "num_batches": null,
+    "payment_terms": "28",
+    "labor_payment_day": 5
+  },
+  "01.12": {
+    "code": "01.12",
+    "description": "OMISSOS",
+    "material_pct": 60.0,
+    "labor_pct": 40.0,
+    "anticipation_days": 15,
+    "distribution_type": "continuo",
+    "num_batches": null,
+    "payment_terms": "28",
+    "labor_payment_day": 5
+  },
+  "01.13": {
+    "code": "01.13",
+    "description": "TAXAS",
+    "material_pct": 60.0,
+    "labor_pct": 40.0,
+    "anticipation_days": 15,
+    "distribution_type": "continuo",
+    "num_batches": null,
+    "payment_terms": "28",
+    "labor_payment_day": 5
+  }
+}

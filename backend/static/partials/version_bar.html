@@ -1,0 +1,24 @@
+            <!-- Version bar (usa vbDomain do x-data pai: orcamento | distribuicao | medicao) -->
+            <div class="flex items-center space-x-2 text-xs">
+              <span class="text-slate-500 font-semibold">Versão:</span>
+              <select
+                @change="activateVersion(vbDomain, $event.target.value)"
+                class="bg-slate-50 border border-slate-300 text-slate-800 rounded px-2 py-1 text-xs font-semibold outline-none">
+                <template x-for="v in (versions[vbDomain]?.versions || [])" :key="v.id">
+                  <option :value="v.id" :selected="v.id === versions[vbDomain]?.active" x-text="v.name + (v.has_edits ? ' (editada)' : '')"></option>
+                </template>
+              </select>
+              <button
+                @click="openVersionImport(vbDomain)"
+                class="flex items-center space-x-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-2.5 py-1 rounded-lg transition shadow-xs">
+                <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                <span>Importar</span>
+              </button>
+              <button
+                @click="downloadSplitTemplate(vbDomain)"
+                title="Baixar a planilha modelo desta tela"
+                class="flex items-center space-x-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-semibold px-2.5 py-1 rounded-lg transition">
+                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+                <span>Modelo</span>
+              </button>
+            </div>

@@ -9,16 +9,40 @@ from typing import Dict, List, Any, Optional
 
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "cache")
 
+# Incrementar sempre que o formato do dicionário retornado por parse_excel_project mudar.
+PARSER_VERSION = "2"
+
+def _content_fingerprint(file_path: str, chunk: int = 1024 * 1024) -> str:
+    # Tamanho + primeiro/último MB: não depende do mtime (que o OneDrive altera ao sincronizar).
+    h = hashlib.md5()
+    size = os.path.getsize(file_path)
+    h.update(str(size).encode())
+    with open(file_path, "rb") as f:
+        h.update(f.read(chunk))
+        if size > chunk:
+            f.seek(max(chunk, size - chunk))
+            h.update(f.read(chunk))
+    return h.hexdigest()
+
 def get_cache_path(file_path: str) -> str:
     try:
-        stat = os.stat(file_path)
-        key_str = f"{os.path.normpath(file_path)}_{stat.st_size}_{stat.st_mtime}"
+        key_str = f"{os.path.normpath(file_path)}_{_content_fingerprint(file_path)}_v{PARSER_VERSION}"
     except Exception:
-        key_str = os.path.normpath(file_path)
+        key_str = f"{os.path.normpath(file_path)}_v{PARSER_VERSION}"
     key_hash = hashlib.md5(key_str.encode("utf-8")).hexdigest()
     base_name = os.path.splitext(os.path.basename(file_path))[0][:20]
     safe_name = "".join(c for c in base_name if c.isalnum() or c in ('_', '-'))
     return os.path.join(CACHE_DIR, f"{safe_name}_{key_hash}.pkl")
+
+def _remove_stale_caches(cache_path: str):
+    prefix = os.path.basename(cache_path).rsplit("_", 1)[0] + "_"
+    for name in os.listdir(CACHE_DIR):
+        full = os.path.join(CACHE_DIR, name)
+        if name.startswith(prefix) and name.endswith(".pkl") and full != cache_path and len(name) == len(os.path.basename(cache_path)):
+            try:
+                os.remove(full)
+            except OSError:
+                pass
 
 def norm(text: str) -> str:
     if not text:
@@ -85,7 +109,12 @@ def parse_excel_project(file_path: str) -> Dict[str, Any]:
     Supports BOTH:
       1. Standard Replanejamento Template (.xlsx with Level 1-5 + Level 6 links in Orçamento & Cronograma tab)
       2. Legacy Piemonte Monolithic Multi-Tab Spreadsheets (with persistent disk caching)
+      3. Split project folder (orcamento.xlsx, cronograma.xlsx, ... — see docs/PLANILHAS.md)
     """
+    if os.path.isdir(file_path):
+        from .split_io import parse_split_project
+        return parse_split_project(file_path)
+
     os.makedirs(CACHE_DIR, exist_ok=True)
     cache_path = get_cache_path(file_path)
     if os.path.exists(cache_path):
@@ -433,11 +462,12 @@ def parse_excel_project(file_path: str) -> Dict[str, Any]:
     ws_med = get_sheet_by_keyword(wb, 'medicao')
     cutoff_med_num = 1
     cutoff_date = None
-    item_measurements: Dict[str, float] = {}
     history_monthly: List[Dict[str, Any]] = []
 
     if ws_med is not None:
-        r1 = list(ws_med.iter_rows(min_row=1, max_row=1, values_only=True))[0]
+        # The Medição tab replaces any accumulated % read from the Orçamento tab
+        item_measurements = {}
+        r1 =list(ws_med.iter_rows(min_row=1, max_row=1, values_only=True))[0]
         r2 = list(ws_med.iter_rows(min_row=2, max_row=2, values_only=True))[0]
         r3 = list(ws_med.iter_rows(min_row=3, max_row=3, values_only=True))[0]
         r4 = list(ws_med.iter_rows(min_row=4, max_row=4, values_only=True))[0]
@@ -545,6 +575,7 @@ def parse_excel_project(file_path: str) -> Dict[str, Any]:
     try:
         with open(cache_path, "wb") as f:
             pickle.dump(result, f, protocol=pickle.HIGHEST_PROTOCOL)
+        _remove_stale_caches(cache_path)
     except Exception as e:
         print(f"[CACHE] Error writing {cache_path}: {e}")
 

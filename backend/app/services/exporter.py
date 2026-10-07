@@ -218,6 +218,161 @@ def add_sheet_ff_replan(wb: openpyxl.Workbook, replan_result: Dict[str, Any], vi
     _auto_fit_columns(ws, min_widths={'C': 38})
 
 
+def add_sheet_competencia(wb: openpyxl.Workbook, replan_result: Dict[str, Any], view_mode: str = "val"):
+    title = "Competência (%)" if view_mode == "pct" else "Competência (R$)"
+    ws = wb.create_sheet(title=title)
+    cycles = replan_result.get("extended_cycles") or replan_result.get("cycles", [])
+    total_budget = replan_result.get("total_budget", 1.0) or 1.0
+
+    base_headers = ["Nível", "Código", "Descrição", "Orçamento Total (R$)"]
+    suffix = " (%)" if view_mode == "pct" else " (R$)"
+    cycle_headers = [c["period_label"] + suffix for c in cycles]
+    total_col_header = "Total Competência (%)" if view_mode == "pct" else "Total Competência (R$)"
+    total_headers = base_headers + cycle_headers + [total_col_header]
+
+    ws.append(total_headers)
+    for col_idx in range(1, len(total_headers) + 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    tree_rows = replan_result.get("tab_competencia", [])
+    for row_idx, node in enumerate(tree_rows, 2):
+        lvl = node["level"]
+        is_bold = (lvl <= 3)
+        indent = "  " * (lvl - 1)
+
+        r_cells = [
+            lvl,
+            node["code"],
+            indent + str(node["description"] or ""),
+            node.get("budget", 0.0),
+        ]
+
+        row_total = 0.0
+        for c in cycles:
+            val_r = node.get("cycle_vals", {}).get(str(c["num"]), 0.0)
+            row_total += val_r
+            if view_mode == "pct":
+                pct_val = (val_r / total_budget)
+                r_cells.append(pct_val)
+            else:
+                r_cells.append(val_r)
+
+        if view_mode == "pct":
+            r_cells.append(row_total / total_budget)
+        else:
+            r_cells.append(row_total)
+
+        ws.append(r_cells)
+        cur_row = ws[row_idx]
+        cur_row[0].alignment = Alignment(horizontal="center")
+        cur_row[1].alignment = Alignment(horizontal="left")
+        cur_row[3].number_format = 'R$ #,##0.00'
+
+        for c_offset, c in enumerate(cycles):
+            c_cell = cur_row[4 + c_offset]
+            if view_mode == "pct":
+                c_cell.number_format = '0.00%'
+            else:
+                c_cell.number_format = 'R$ #,##0.00'
+            if c.get("is_past"):
+                c_cell.fill = past_fill
+
+        cur_row[-1].number_format = '0.00%' if view_mode == "pct" else 'R$ #,##0.00'
+
+        if is_bold:
+            for cell in cur_row:
+                cell.font = bold_font
+                if lvl == 1:
+                    cell.fill = lvl1_fill
+                elif lvl == 2:
+                    cell.fill = lvl2_fill
+                elif lvl == 3:
+                    cell.fill = lvl3_fill
+
+    _auto_fit_columns(ws, min_widths={'C': 38})
+
+
+def add_sheet_financeiro(wb: openpyxl.Workbook, replan_result: Dict[str, Any], view_mode: str = "val"):
+    title = "Financeiro (%)" if view_mode == "pct" else "Financeiro (R$)"
+    ws = wb.create_sheet(title=title)
+    cycles = replan_result.get("extended_cycles") or replan_result.get("cycles", [])
+    total_budget = replan_result.get("total_budget", 1.0) or 1.0
+
+    base_headers = ["Nível", "Código", "Descrição", "Orçamento Total (R$)"]
+    suffix = " (%)" if view_mode == "pct" else " (R$)"
+    cycle_headers = [c["period_label"] + suffix for c in cycles]
+    total_col_header = "Total Desembolso (%)" if view_mode == "pct" else "Total Desembolso (R$)"
+    total_headers = base_headers + cycle_headers + [total_col_header]
+
+    ws.append(total_headers)
+    for col_idx in range(1, len(total_headers) + 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    tree_rows = replan_result.get("tab_financeiro", [])
+    for row_idx, node in enumerate(tree_rows, 2):
+        lvl = node["level"]
+        is_bold = (lvl <= 3)
+        indent = "  " * (lvl - 1)
+
+        r_cells = [
+            lvl,
+            node["code"],
+            indent + str(node["description"] or ""),
+            node.get("budget", 0.0),
+        ]
+
+        row_total = 0.0
+        for c in cycles:
+            val_r = node.get("cycle_vals", {}).get(str(c["num"]), 0.0)
+            row_total += val_r
+            if view_mode == "pct":
+                pct_val = (val_r / total_budget)
+                r_cells.append(pct_val)
+            else:
+                r_cells.append(val_r)
+
+        if view_mode == "pct":
+            r_cells.append(row_total / total_budget)
+        else:
+            r_cells.append(row_total)
+
+        ws.append(r_cells)
+        cur_row = ws[row_idx]
+        cur_row[0].alignment = Alignment(horizontal="center")
+        cur_row[1].alignment = Alignment(horizontal="left")
+        cur_row[3].number_format = 'R$ #,##0.00'
+
+        for c_offset, c in enumerate(cycles):
+            c_cell = cur_row[4 + c_offset]
+            if view_mode == "pct":
+                c_cell.number_format = '0.00%'
+            else:
+                c_cell.number_format = 'R$ #,##0.00'
+            if c.get("is_past"):
+                c_cell.fill = past_fill
+
+        cur_row[-1].number_format = '0.00%' if view_mode == "pct" else 'R$ #,##0.00'
+
+        if is_bold:
+            for cell in cur_row:
+                cell.font = bold_font
+                if lvl == 1:
+                    cell.fill = lvl1_fill
+                elif lvl == 2:
+                    cell.fill = lvl2_fill
+                elif lvl == 3:
+                    cell.fill = lvl3_fill
+
+    _auto_fit_columns(ws, min_widths={'C': 38})
+
+
+
 def add_sheet_distribuicao(wb: openpyxl.Workbook, replan_result: Dict[str, Any], view_mode: str = "val"):
     if view_mode == "pct":
         mode_label = "% Obra"
@@ -648,7 +803,7 @@ def export_replan_to_excel(
     cutoff_med = replan_result.get("cutoff_med_num", 11)
 
     if export_target == "all":
-        # Consolidated workbook with all modules
+        # Consolidated workbook with all modules (10 tabs)
         add_sheet_summary(wb, replan_result)
         add_sheet_orcamento(wb, replan_result)
         add_sheet_distribuicao(wb, replan_result, view_mode=dist_view_mode)
@@ -656,6 +811,8 @@ def export_replan_to_excel(
         add_sheet_medicao(wb, replan_result)
         add_sheet_replanejado(wb, replan_result, view_mode=ff_rep_view_mode)
         add_sheet_ff_replan(wb, replan_result, view_mode=ff_rep_view_mode)
+        add_sheet_competencia(wb, replan_result, view_mode=ff_rep_view_mode)
+        add_sheet_financeiro(wb, replan_result, view_mode=ff_rep_view_mode)
         add_sheet_cronograma(wb, replan_result)
         filename = f"{proj_name}_Pasta_Completa_M{cutoff_med}.xlsx"
     else:
@@ -670,6 +827,14 @@ def export_replan_to_excel(
             add_sheet_ff_replan(wb, replan_result, view_mode=ff_rep_view_mode)
             mode_tag = "Percentual" if ff_rep_view_mode == "pct" else "Valor_R$"
             filename = f"{proj_name}_FF_Replanejado_{mode_tag}_M{cutoff_med}.xlsx"
+        elif active_tab == "competencia":
+            add_sheet_competencia(wb, replan_result, view_mode=ff_rep_view_mode)
+            mode_tag = "Percentual" if ff_rep_view_mode == "pct" else "Valor_R$"
+            filename = f"{proj_name}_Curva_Competencia_{mode_tag}_M{cutoff_med}.xlsx"
+        elif active_tab == "financeiro":
+            add_sheet_financeiro(wb, replan_result, view_mode=ff_rep_view_mode)
+            mode_tag = "Percentual" if ff_rep_view_mode == "pct" else "Valor_R$"
+            filename = f"{proj_name}_Curva_Financeira_{mode_tag}_M{cutoff_med}.xlsx"
         elif active_tab == "fisico_financeiro":
             add_sheet_ff_baseline(wb, replan_result, view_mode=ff_view_mode)
             mode_tag = "Percentual" if ff_view_mode == "pct" else "Valor_R$"
@@ -690,6 +855,7 @@ def export_replan_to_excel(
         else:  # dashboard
             add_sheet_ff_replan(wb, replan_result, view_mode=ff_rep_view_mode)
             filename = f"{proj_name}_Resumo_Replanejamento_M{cutoff_med}.xlsx"
+
 
     output = io.BytesIO()
     wb.save(output)

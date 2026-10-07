@@ -1,3 +1,4 @@
+import io
 import datetime
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
@@ -9,6 +10,16 @@ from ..services.exporter import export_replan_to_excel
 from ..services.schedule_importer import parse_ms_project_xml, parse_schedule_excel_tab, parse_ms_project_mpp, get_group_leaf_tasks, try_float
 from ..services.piemonte_scanner import scan_piemonte_projects
 from .projects import PROJECT_CACHE
+from ..services import versions as vstore
+from ..services.competence_finance_engine import (
+    compute_competence_and_cashflow,
+    load_curvas_config,
+    save_curvas_config,
+    generate_curvas_config_excel,
+    parse_curvas_config_excel,
+    get_default_stage_configs
+)
+
 
 router = APIRouter(prefix="/api/replan", tags=["Replan"])
 
@@ -16,7 +27,6 @@ import pickle
 import os
 
 VERSIONS_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "data", "schedule_versions.pkl")
-CUSTOM_LINKS_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "data", "custom_links.pkl")
 
 def _load_versions() -> Dict[str, List[Dict[str, Any]]]:
     try:
@@ -37,23 +47,6 @@ def _save_versions(versions: Dict[str, List[Dict[str, Any]]]):
 
 SCHEDULE_VERSIONS: Dict[str, List[Dict[str, Any]]] = _load_versions()
 
-def _load_custom_links() -> Dict[str, Dict[str, List[Dict[str, Any]]]]:
-    try:
-        if os.path.exists(CUSTOM_LINKS_FILE):
-            with open(CUSTOM_LINKS_FILE, "rb") as f:
-                return pickle.load(f)
-    except Exception as e:
-        print(f"Erro ao carregar custom_links: {e}")
-    return {}
-
-def _save_custom_links(links_data: Dict[str, Dict[str, List[Dict[str, Any]]]]):
-    try:
-        os.makedirs(os.path.dirname(CUSTOM_LINKS_FILE), exist_ok=True)
-        with open(CUSTOM_LINKS_FILE, "wb") as f:
-            pickle.dump(links_data, f)
-    except Exception as e:
-        print(f"Erro ao salvar custom_links: {e}")
-
 class ReplanRequest(BaseModel):
     project_id: str
     file_path: Optional[str] = None
@@ -69,11 +62,28 @@ class ReplanRequest(BaseModel):
     custom_weights: Optional[Dict[str, float]] = None
     custom_schedule_overrides: Optional[Dict[str, Any]] = None
     custom_links_by_l5: Optional[Dict[str, List[Dict[str, Any]]]] = None
+    custom_stage_configs: Optional[Dict[str, Dict[str, Any]]] = None
     export_target: Optional[str] = "current"
     active_tab: Optional[str] = "ff_replanejado"
     dist_view_mode: Optional[str] = "val"
     ff_rep_view_mode: Optional[str] = "val"
     ff_view_mode: Optional[str] = "val"
+
+def _resolve_versions(req: "ReplanRequest", parsed: Dict[str, Any]):
+    """Aplica as versões ativas de cada tela: dados importados, cronograma e vínculos editados."""
+    parsed = vstore.apply_active_versions(req.project_id, parsed)
+    version_id = req.version_id or vstore.get_active(req.project_id, "cronograma")
+    schedule_override = None
+    if version_id != "atual" and req.project_id in SCHEDULE_VERSIONS:
+        found_v = next((v for v in SCHEDULE_VERSIONS[req.project_id] if v["id"] == version_id), None)
+        if found_v:
+            schedule_override = found_v["tasks"]
+        else:
+            version_id = "atual"
+    custom_links = req.custom_links_by_l5
+    if custom_links is None:
+        custom_links = vstore.get_edits(req.project_id, "distribuicao").get("links_by_l5")
+    return parsed, schedule_override, version_id, custom_links
 
 @router.post("/simulate")
 def simulate_replan(req: ReplanRequest):
@@ -105,17 +115,7 @@ def simulate_replan(req: ReplanRequest):
                 detail="Projeto não carregado. Por favor, carregue o projeto primeiro."
             )
 
-    # Check if a custom schedule version was selected
-    schedule_override = None
-    if req.version_id and req.version_id != "atual" and req.project_id in SCHEDULE_VERSIONS:
-        found_v = next((v for v in SCHEDULE_VERSIONS[req.project_id] if v["id"] == req.version_id), None)
-        if found_v:
-            schedule_override = found_v["tasks"]
-
-    custom_links = req.custom_links_by_l5
-    saved_links = _load_custom_links()
-    if custom_links is None and req.project_id in saved_links:
-        custom_links = saved_links[req.project_id]
+    parsed, schedule_override, version_id, custom_links = _resolve_versions(req, parsed)
 
     try:
         result = run_replan_calculation(
@@ -135,7 +135,7 @@ def simulate_replan(req: ReplanRequest):
         )
         
         # Inject custom schedule versions into tab_cronograma
-        is_atual_active = (not req.version_id or req.version_id == "atual")
+        is_atual_active = (version_id == "atual")
         result["tab_cronograma"]["versions"] = [
             {"id": "atual", "name": "Revisão Atual (Arquivo)", "active": is_atual_active}
         ]
@@ -144,8 +144,29 @@ def simulate_replan(req: ReplanRequest):
                 result["tab_cronograma"]["versions"].append({
                     "id": v["id"],
                     "name": v["name"],
-                    "active": (req.version_id == v["id"])
+                    "active": (version_id == v["id"])
                 })
+
+        # Cálculos das curvas de Competência Contábil e Financeiro (Fluxo de Caixa)
+        stage_cfg = req.custom_stage_configs
+        if not stage_cfg:
+            stage_cfg = load_curvas_config(req.project_id, parsed.get("budget_items", {}))
+
+        comp_fin_res = compute_competence_and_cashflow(
+            budget_items=parsed.get("budget_items", {}),
+            tab_ff_replan_rows=result.get("tab_ff_replanejado", []),
+            cycles=result.get("cycles", []),
+            total_proj_budget=result.get("total_budget", parsed.get("total_budget", 0.0)),
+            stage_configs=stage_cfg,
+            cycle_start_day=req.cycle_start_day,
+            cycle_end_day=req.cycle_end_day
+        )
+
+        result["tab_competencia"] = comp_fin_res["tab_competencia"]
+        result["tab_financeiro"] = comp_fin_res["tab_financeiro"]
+        result["stage_configs"] = comp_fin_res["stage_configs"]
+        result["extended_cycles"] = comp_fin_res["extended_cycles"]
+        result["s_curves_comparison"] = comp_fin_res["s_curves_comparison"]
 
         return result
     except Exception as e:
@@ -185,6 +206,7 @@ async def import_schedule(
             "created_at": str(datetime.datetime.now())
         })
         _save_versions(SCHEDULE_VERSIONS)
+        vstore.set_active(project_id, "cronograma", version_id, [version_id])
 
         return {
             "status": "success",
@@ -207,16 +229,7 @@ def export_replan(req: ReplanRequest):
     else:
         raise HTTPException(status_code=400, detail="Projeto não carregado.")
 
-    schedule_override = None
-    if req.version_id and req.project_id in SCHEDULE_VERSIONS:
-        found_v = next((v for v in SCHEDULE_VERSIONS[req.project_id] if v["id"] == req.version_id), None)
-        if found_v:
-            schedule_override = found_v["tasks"]
-
-    custom_links = req.custom_links_by_l5
-    saved_links = _load_custom_links()
-    if custom_links is None and req.project_id in saved_links:
-        custom_links = saved_links[req.project_id]
+    parsed, schedule_override, _, custom_links = _resolve_versions(req, parsed)
 
     result = run_replan_calculation(
         parsed_data=parsed,
@@ -258,9 +271,8 @@ def save_links(req: SaveLinksRequest):
     """
     Persists custom distribution links for a project.
     """
-    all_links = _load_custom_links()
-    all_links[req.project_id] = req.links_by_l5
-    _save_custom_links(all_links)
+    edits = dict(vstore.get_edits(req.project_id, "distribuicao"), links_by_l5=req.links_by_l5)
+    vstore.save_edits(req.project_id, "distribuicao", edits)
     return {"status": "success", "saved_count": len(req.links_by_l5)}
 
 class ResetLinksRequest(BaseModel):
@@ -269,12 +281,9 @@ class ResetLinksRequest(BaseModel):
 @router.post("/reset-links")
 def reset_links(req: ResetLinksRequest):
     """
-    Resets custom distribution links back to original imported baseline.
+    Resets custom distribution links of the active version back to what was imported.
     """
-    all_links = _load_custom_links()
-    if req.project_id in all_links:
-        del all_links[req.project_id]
-        _save_custom_links(all_links)
+    vstore.save_edits(req.project_id, "distribuicao", {})
     return {"status": "reset"}
 
 @router.get("/expand-group")
@@ -311,3 +320,62 @@ def expand_group(project_id: str, group_id: str, version_id: Optional[str] = Non
             for t in leaves
         ]
     }
+
+class CurvasConfigRequest(BaseModel):
+    configs: List[Dict[str, Any]]
+
+@router.get("/{project_id}/curvas-config")
+def get_curvas_config_endpoint(project_id: str):
+    """Retorna as configurações atuais de prazos e insumos por etapa."""
+    budget_items = {}
+    if project_id in PROJECT_CACHE:
+        budget_items = PROJECT_CACHE[project_id]["data"].get("budget_items", {})
+    else:
+        projs = scan_piemonte_projects()
+        found = next((p for p in projs if p["id"] == project_id), None)
+        if found and found.get("latest_file"):
+            parsed = parse_excel_project(found["latest_file"]["path"])
+            budget_items = parsed.get("budget_items", {})
+    
+    cfg = load_curvas_config(project_id, budget_items)
+    return {"project_id": project_id, "configs": list(cfg.values())}
+
+@router.post("/{project_id}/curvas-config")
+def save_curvas_config_endpoint(project_id: str, req: CurvasConfigRequest):
+    """Salva configurações por etapa."""
+    save_curvas_config(project_id, req.configs)
+    return {"status": "success", "message": "Configurações salvas com sucesso!"}
+
+@router.get("/{project_id}/curvas-config/template")
+def download_curvas_config_template(project_id: str):
+    """Baixa a planilha modelo para preenchimento de prazos e lotes por etapa."""
+    budget_items = {}
+    if project_id in PROJECT_CACHE:
+        budget_items = PROJECT_CACHE[project_id]["data"].get("budget_items", {})
+    else:
+        projs = scan_piemonte_projects()
+        found = next((p for p in projs if p["id"] == project_id), None)
+        if found and found.get("latest_file"):
+            parsed = parse_excel_project(found["latest_file"]["path"])
+            budget_items = parsed.get("budget_items", {})
+
+    cfg = load_curvas_config(project_id, budget_items)
+    excel_bytes = generate_curvas_config_excel(list(cfg.values()))
+    
+    return StreamingResponse(
+        io.BytesIO(excel_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=Parametros_Curvas_{project_id}.xlsx"}
+    )
+
+@router.post("/{project_id}/curvas-config/upload")
+async def upload_curvas_config(project_id: str, file: UploadFile = File(...)):
+    """Faz upload da planilha Excel com configurações e salva no projeto."""
+    content = await file.read()
+    parsed_cfgs = parse_curvas_config_excel(content)
+    if not parsed_cfgs:
+        raise HTTPException(status_code=400, detail="Planilha vazia ou com formato inválido.")
+    
+    save_curvas_config(project_id, parsed_cfgs)
+    return {"status": "success", "configs": list(parsed_cfgs.values()), "message": f"{len(parsed_cfgs)} etapas atualizadas!"}
+

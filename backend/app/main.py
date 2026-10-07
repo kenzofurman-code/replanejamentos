@@ -1,11 +1,12 @@
 import os
+import re
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from .config import settings
 from .database import init_db
-from .routers import projects, replan
+from .routers import projects, replan, versions
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -25,6 +26,7 @@ app.add_middleware(
 # Include Routers
 app.include_router(projects.router)
 app.include_router(replan.router)
+app.include_router(versions.router)
 
 # Initialize database tables & warm-up cache
 @app.on_event("startup")
@@ -50,12 +52,25 @@ STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 if os.path.exists(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+_INCLUDE_RE = re.compile(r"<!-- @include (partials/[\w]+\.html) -->\r?\n")
+
+def _render_index(index_path: str) -> str:
+    # index.html is split into static/partials/*.html (one per tab/modal); assemble on each request
+    with open(index_path, encoding="utf-8", newline="") as f:
+        html = f.read()
+    def _include(m):
+        with open(os.path.join(STATIC_DIR, m.group(1)), encoding="utf-8", newline="") as pf:
+            return pf.read()
+    while _INCLUDE_RE.search(html):
+        html = _INCLUDE_RE.sub(_include, html)
+    return html
+
 @app.get("/")
 def read_root():
     index_path = os.path.join(STATIC_DIR, "index.html")
     if os.path.exists(index_path):
-        return FileResponse(
-            index_path,
+        return HTMLResponse(
+            _render_index(index_path),
             headers={
                 "Cache-Control": "no-cache, no-store, must-revalidate",
                 "Pragma": "no-cache",

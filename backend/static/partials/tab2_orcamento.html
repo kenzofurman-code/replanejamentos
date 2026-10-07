@@ -1,0 +1,69 @@
+    <!-- TAB 2: ORÇAMENTO (EAP) - UNLOADED WHEN INACTIVE -->
+    <template x-if="activeTab === 'orcamento'">
+      <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+        <div class="p-3 border-b border-slate-200 flex items-center justify-between">
+          <div>
+            <h3 class="font-bold text-slate-900 text-xs">Planilha Orçamentária Contratual (EAP Níveis 1 a 5)</h3>
+            <p class="text-[10px] text-slate-500">Estrutura analítica de preços, quantidades e pesos contratuais</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <div x-data="{ vbDomain: 'orcamento' }">
+<!-- @include partials/version_bar.html -->
+            </div>
+          <input 
+            type="text" 
+            x-model="searchBudget" 
+            placeholder="Filtrar código ou descrição..." 
+            class="bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-xs w-56 outline-none">
+          </div>
+        </div>
+
+        <div class="overflow-x-auto max-h-[600px] 2xl:max-h-[750px] scrollbar-thin">
+          <table class="w-full text-left table-compact border-separate border-spacing-0">
+            <thead class="bg-slate-900 text-white sticky top-0 z-20">
+              <!-- Row 1: Column Titles -->
+              <tr class="h-[34px]">
+                <th class="py-1 px-2 w-10 min-w-[40px] max-w-[40px] text-center border-b border-r border-slate-800 sticky top-0 left-0 z-40 bg-slate-900 h-[34px] box-border">Nív</th>
+                <th class="py-1 px-2 w-28 min-w-[110px] max-w-[110px] border-b border-r border-slate-800 sticky top-0 left-[40px] z-40 bg-slate-900 h-[34px] box-border">Código</th>
+                <th class="py-1 px-3 w-[280px] min-w-[280px] max-w-[280px] border-b border-r border-slate-800 sticky top-0 left-[150px] z-40 bg-slate-900 sticky-shadow-header-r h-[34px] box-border">Descrição</th>
+                <th class="py-1 px-2 text-center w-14 min-w-[56px] border-b border-r border-slate-800 sticky top-0 z-30 bg-slate-900 h-[34px] box-border">Und</th>
+                <th class="py-1 px-2 text-right w-20 min-w-[70px] border-b border-r border-slate-800 sticky top-0 z-30 bg-slate-900 h-[34px] box-border">Qtd</th>
+                <th class="py-1 px-2 text-right w-24 min-w-[90px] border-b border-r border-slate-800 sticky top-0 z-30 bg-slate-900 h-[34px] box-border">P. Unit. (R$)</th>
+                <th class="py-1 px-2 text-right w-28 min-w-[110px] border-b border-r border-slate-800 sticky top-0 z-30 bg-slate-900 h-[34px] box-border">P. Total (R$)</th>
+                <th class="py-1 px-2 text-right w-20 min-w-[70px] border-b border-slate-800 sticky top-0 z-30 bg-slate-900 h-[34px] box-border">% Obra</th>
+              </tr>
+              <!-- Row 2: Level 1 Totalizer (Pinned) -->
+              <tr class="h-8">
+                <th class="py-0.5 px-2 text-center border-b border-r border-neutral-800 sticky top-[34px] left-0 z-35 sticky-level-1 w-10 min-w-[40px] max-w-[40px] font-bold h-8 box-border">1</th>
+                <th class="py-0.5 px-2 font-mono text-[10px] border-b border-r border-neutral-800 sticky top-[34px] left-[40px] z-35 sticky-level-1 w-28 min-w-[110px] max-w-[110px] font-bold h-8 box-border text-left" x-text="level1BudgetRow?.code || '1'"></th>
+                <th class="py-0.5 px-3 border-b border-r border-neutral-800 sticky top-[34px] left-[150px] z-35 sticky-level-1 w-[280px] min-w-[280px] max-w-[280px] sticky-shadow-header-r font-bold h-8 box-border text-left">
+                  <div class="truncate" x-text="level1BudgetRow?.description || 'Platea 19 / Total Geral da Obra'"></div>
+                </th>
+                <th class="py-0.5 px-2 text-center border-b border-r border-neutral-800 sticky top-[34px] z-25 bg-black text-white text-[10px] h-8 box-border">-</th>
+                <th class="py-0.5 px-2 text-right border-b border-r border-neutral-800 sticky top-[34px] z-25 bg-black text-white text-[10px] h-8 box-border">-</th>
+                <th class="py-0.5 px-2 text-right border-b border-r border-neutral-800 sticky top-[34px] z-25 bg-black text-white text-[10px] h-8 box-border">-</th>
+                <th class="py-0.5 px-2 text-right border-b border-r border-neutral-800 sticky top-[34px] z-25 bg-black text-white font-bold h-8 box-border" x-text="formatCurrency(level1BudgetRow?.total_price || replanResult?.total_budget)"></th>
+                <th class="py-0.5 px-2 text-right border-b border-neutral-800 sticky top-[34px] z-25 bg-black text-emerald-400 font-bold h-8 box-border">100.00%</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+              <template x-for="item in filteredBudgetRows" :key="item.code">
+                <tr :class="getLevelRowClass(item.level)">
+                  <td class="py-1 px-2 text-center border-b border-r sticky left-0 z-10 w-10 min-w-[40px] max-w-[40px]" :class="getLevelStickyClass(item.level)" x-text="item.level"></td>
+                  <td class="py-1 px-2 font-mono text-[10px] border-b border-r sticky left-[40px] z-10 w-28 min-w-[110px] max-w-[110px]" :class="getLevelStickyClass(item.level)" x-text="item.code"></td>
+                  <td class="py-1 px-3 border-b border-r sticky left-[150px] z-10 w-[280px] min-w-[280px] max-w-[280px] sticky-shadow-r" :class="getLevelStickyClass(item.level)" :style="'padding-left: ' + ((item.level-1)*12 + 8) + 'px'">
+                    <div class="truncate" :title="item.description" x-text="item.description"></div>
+                  </td>
+                  <td class="py-1 px-2 text-center border-b border-r text-[10px]" :class="item.level <= 3 ? 'text-slate-200' : 'text-slate-500'" x-text="item.unit || '-'"></td>
+                  <td class="py-1 px-2 text-right border-b border-r" :class="item.level <= 3 ? 'text-slate-200' : 'text-slate-600'" x-text="item.quantity > 0 ? item.quantity.toLocaleString('pt-BR') : '-'"></td>
+                  <td class="py-1 px-2 text-right border-b border-r" :class="item.level <= 3 ? 'text-slate-200' : 'text-slate-600'" x-text="item.unit_price > 0 ? formatCurrency(item.unit_price) : '-'"></td>
+                  <td class="py-1 px-2 text-right border-b border-r font-semibold" x-text="formatCurrency(item.total_price)"></td>
+                  <td class="py-1 px-2 text-right border-b font-semibold" :class="item.level <= 3 ? 'text-emerald-300' : 'text-blue-700'" x-text="item.pct_share.toFixed(2) + '%'"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </template>
+

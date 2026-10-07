@@ -1,16 +1,21 @@
+import io
 import os
 import re
+import zipfile
 import json
 import shutil
 import unicodedata
 import datetime
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 from ..services.piemonte_scanner import scan_piemonte_projects, UPLOADED_PROJECTS_DIR
 from ..services.excel_reader import parse_excel_project
+from ..services.split_io import (split_signature, is_split_project, FILES as SPLIT_FILES, write_split_files,
+                                 write_combined_workbook, is_combined_workbook, split_combined_workbook)
 from ..services.replan_engine import run_replan_calculation
+from ..services.versions import VERSIONS_DIR
 from ..services.template_generator import generate_standard_replan_template
 from ..services.schedule_importer import parse_ms_project_xml, parse_schedule_excel_tab, parse_ms_project_mpp
 
@@ -27,22 +32,109 @@ def _slugify(text: str) -> str:
     slug = re.sub(r'[^a-zA-Z0-9]+', '_', text).strip('_').lower()
     return slug or "obra"
 
-@router.get("/template")
-def download_template():
-    """
-    Downloads the official standard Excel template for project import.
-    """
+XLSX_MEDIA = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+COMBINED_TEMPLATE_FILE = os.path.join(TEMPLATE_DIR, "Modelo_Obra_Completa.xlsx")
+
+def _standard_template_path() -> str:
     os.makedirs(TEMPLATE_DIR, exist_ok=True)
     if not os.path.exists(TEMPLATE_FILE):
         buf = generate_standard_replan_template()
         with open(TEMPLATE_FILE, "wb") as f:
             f.write(buf.getvalue())
-            
-    return FileResponse(
-        TEMPLATE_FILE,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename="Modelo_Padrao_Replanejamento.xlsx"
+    return TEMPLATE_FILE
+
+@router.get("/template")
+def download_template():
+    """
+    Downloads the 'Nova Obra' template: one Excel with the Orçamento, Cronograma, Distribuição and Medição tabs.
+    """
+    if not os.path.exists(COMBINED_TEMPLATE_FILE):
+        write_combined_workbook(parse_excel_project(_standard_template_path()), COMBINED_TEMPLATE_FILE)
+    return FileResponse(COMBINED_TEMPLATE_FILE, media_type=XLSX_MEDIA, filename="Modelo_Obra_Completa.xlsx")
+
+SPLIT_TEMPLATE_DIR = os.path.join(TEMPLATE_DIR, "modelo_separado")
+
+def _ensure_split_templates():
+    if not is_split_project(SPLIT_TEMPLATE_DIR):
+        write_split_files(parse_excel_project(_standard_template_path()), SPLIT_TEMPLATE_DIR)
+
+@router.get("/template-split/{domain}")
+def download_split_template_file(domain: str):
+    """
+    Downloads the model spreadsheet of a single screen (orcamento, cronograma, distribuicao, medicao).
+    """
+    if domain not in SPLIT_FILES:
+        raise HTTPException(status_code=404, detail="Tela desconhecida.")
+    _ensure_split_templates()
+    return FileResponse(os.path.join(SPLIT_TEMPLATE_DIR, SPLIT_FILES[domain]), media_type=XLSX_MEDIA,
+                        filename=f"Modelo_{domain}.xlsx")
+
+@router.get("/template-split")
+def download_split_template():
+    """
+    Downloads a .zip with one model spreadsheet per input screen (see docs/PLANILHAS.md).
+    """
+    _ensure_split_templates()
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name in SPLIT_FILES.values():
+            p = os.path.join(SPLIT_TEMPLATE_DIR, name)
+            if os.path.exists(p):
+                zf.write(p, name)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="Modelo_Planilhas_Separadas.zip"'}
     )
+
+@router.post("/upload-split")
+async def upload_split_project(
+    project_name: str = Form(...),
+    orcamento: UploadFile = File(...),
+    cronograma: Optional[UploadFile] = File(None),
+    distribuicao: Optional[UploadFile] = File(None),
+    medicao: Optional[UploadFile] = File(None)
+):
+    """
+    Uploads a project as separate spreadsheets (orcamento required; others optional).
+    """
+    uploads = {"orcamento": orcamento, "cronograma": cronograma, "distribuicao": distribuicao, "medicao": medicao}
+    for key, up in uploads.items():
+        if up and up.filename and not up.filename.endswith((".xlsx", ".xlsm")):
+            raise HTTPException(status_code=400, detail=f"'{key}' deve ser uma planilha Excel (.xlsx).")
+
+    slug = _slugify(project_name)
+    proj_dir = os.path.join(UPLOADED_PROJECTS_DIR, slug)
+    os.makedirs(proj_dir, exist_ok=True)
+    for key, up in uploads.items():
+        if up and up.filename:
+            with open(os.path.join(proj_dir, SPLIT_FILES[key]), "wb") as f:
+                f.write(await up.read())
+
+    try:
+        parsed = parse_excel_project(proj_dir)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Não foi possível processar as planilhas. Verifique as colunas do modelo: {str(e)}")
+
+    with open(os.path.join(proj_dir, "project.json"), "w", encoding="utf-8") as f:
+        json.dump({
+            "id": slug,
+            "name": project_name.strip(),
+            "created_at": datetime.datetime.now().isoformat(),
+            "format": "split"
+        }, f, indent=2, ensure_ascii=False)
+
+    PROJECT_CACHE.pop(slug, None)
+    return {
+        "status": "success",
+        "project_id": slug,
+        "project_name": project_name.strip(),
+        "total_budget": parsed["total_budget"],
+        "budget_items_count": len(parsed["budget_items"]),
+        "tasks_count": len(parsed["tasks"]),
+        "links_count": len(parsed["all_links"])
+    }
 
 @router.get("", response_model=List[Dict[str, Any]])
 def list_projects():
@@ -90,9 +182,17 @@ async def upload_project(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao salvar arquivo no servidor: {str(e)}")
         
-    # Test parse the uploaded file to ensure validity
+    # Convert to one small spreadsheet per screen; the original is kept in _original/ and never read again
     try:
-        parsed = parse_excel_project(dest_path)
+        if is_combined_workbook(dest_path):
+            split_combined_workbook(dest_path, proj_dir)
+        else:
+            write_split_files(parse_excel_project(dest_path), proj_dir)
+        original_dir = os.path.join(proj_dir, "_original")
+        os.makedirs(original_dir, exist_ok=True)
+        shutil.move(dest_path, os.path.join(original_dir, safe_filename))
+        dest_path = proj_dir
+        parsed = parse_excel_project(proj_dir)
     except Exception as e:
         # Cleanup invalid file/folder if newly created
         try:
@@ -145,29 +245,9 @@ async def upload_project(
         except Exception as err:
             print(f"Aviso: cronograma complementar não pôde ser processado: {err}")
 
-    # Prime cache
-    PROJECT_CACHE[slug] = {
-        "metadata": {
-            "id": slug,
-            "name": project_name.strip(),
-            "folder_name": slug,
-            "path": proj_dir,
-            "has_ff": True,
-            "files": [{
-                "filename": safe_filename,
-                "path": dest_path,
-                "size_mb": round(len(content) / (1024 * 1024), 2),
-                "modified_time": os.stat(dest_path).st_mtime
-            }],
-            "latest_file": {
-                "filename": safe_filename,
-                "path": dest_path
-            }
-        },
-        "file_path": dest_path,
-        "data": parsed
-    }
-    
+    # Force a fresh load of the split files on next access
+    PROJECT_CACHE.pop(slug, None)
+
     return {
         "status": "success",
         "project_id": slug,
@@ -189,6 +269,9 @@ def delete_project(project_id: str):
         
     try:
         shutil.rmtree(proj_dir)
+        versions_dir = os.path.join(VERSIONS_DIR, project_id)
+        if os.path.isdir(versions_dir):
+            shutil.rmtree(versions_dir)
         if project_id in PROJECT_CACHE:
             del PROJECT_CACHE[project_id]
         return {"status": "success", "message": f"Projeto {project_id} excluído com sucesso."}
@@ -200,21 +283,29 @@ def load_project_file(project_id: str, file_path: Optional[str] = None):
     """
     Parses and caches the project spreadsheet in high speed.
     """
-    projs = scan_piemonte_projects()
-    found = next((p for p in projs if p["id"] == project_id), None)
-    if not found:
-        raise HTTPException(status_code=404, detail="Projeto não encontrado.")
+    cached_entry = PROJECT_CACHE.get(project_id)
+    if cached_entry and not file_path:
+        # Avoid rescanning OneDrive folders when the project is already in memory
+        found = cached_entry["metadata"]
+        target_path = cached_entry["file_path"]
+    else:
+        projs = scan_piemonte_projects()
+        found = next((p for p in projs if p["id"] == project_id), None)
+        if not found:
+            raise HTTPException(status_code=404, detail="Projeto não encontrado.")
 
-    # Target file
-    target_path = file_path
-    if not target_path:
-        if found["latest_file"]:
-            target_path = found["latest_file"]["path"]
-        else:
-            raise HTTPException(status_code=400, detail="Nenhum arquivo Físico-Financeiro encontrado para esta obra.")
+        # Target file
+        target_path = file_path
+        if not target_path:
+            if found["latest_file"]:
+                target_path = found["latest_file"]["path"]
+            else:
+                raise HTTPException(status_code=400, detail="Nenhum arquivo Físico-Financeiro encontrado para esta obra.")
+
+    signature = split_signature(target_path) if os.path.isdir(target_path) else None
 
     # Fast cache return if already loaded and file is unchanged
-    if project_id in PROJECT_CACHE and PROJECT_CACHE[project_id]["file_path"] == target_path:
+    if cached_entry and cached_entry["file_path"] == target_path and cached_entry.get("signature") == signature:
         cached = PROJECT_CACHE[project_id]["data"]
         return {
             "status": "success",
@@ -235,6 +326,7 @@ def load_project_file(project_id: str, file_path: Optional[str] = None):
         PROJECT_CACHE[project_id] = {
             "metadata": found,
             "file_path": target_path,
+            "signature": signature,
             "data": parsed
         }
         return {

@@ -1,0 +1,198 @@
+<!-- MODAL DE CONFIGURAÇÃO DE PRAZOS, INSUMOS & ENTREGAS POR ETAPA -->
+<div 
+  x-show="showConfigCurvasModal" 
+  x-cloak
+  class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6"
+  @keydown.escape.window="showConfigCurvasModal = false">
+  
+  <div 
+    @click.away="showConfigCurvasModal = false"
+    class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    
+    <!-- Modal Header -->
+    <div class="px-6 py-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-white shrink-0">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-xl bg-blue-600/30 border border-blue-500/40 flex items-center justify-center text-blue-400">
+          <i data-lucide="sliders" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h3 class="font-bold text-sm tracking-wide">Configuração de Prazos, Insumos & Entregas por Etapa</h3>
+          <p class="text-[11px] text-slate-400">Parametrize Material vs Mão de Obra, dias de antecedência, parcelamento em lotes e prazos de faturamento</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <!-- Download Template Excel -->
+        <button 
+          @click="downloadCurvasTemplate()" 
+          title="Baixar planilha modelo com as etapas da obra"
+          class="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700 transition">
+          <i data-lucide="download" class="w-3.5 h-3.5 text-blue-400"></i>
+          <span>Modelo Excel</span>
+        </button>
+
+        <!-- Import Template Excel -->
+        <label 
+          title="Importar planilha Excel preenchida"
+          class="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700 transition cursor-pointer">
+          <i data-lucide="upload" class="w-3.5 h-3.5 text-emerald-400"></i>
+          <span>Importar Excel</span>
+          <input type="file" accept=".xlsx" class="hidden" @change="uploadCurvasTemplate($event)">
+        </label>
+
+        <!-- Close Button -->
+        <button 
+          @click="showConfigCurvasModal = false" 
+          class="w-8 h-8 rounded-lg hover:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Modal Body (Table of Stages) -->
+    <div class="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
+      
+      <!-- Info Banner -->
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-start space-x-3 text-xs text-blue-900">
+        <i data-lucide="info" class="w-4 h-4 text-blue-600 shrink-0 mt-0.5"></i>
+        <div class="leading-relaxed">
+          <strong>Como funciona:</strong>
+          A <strong>Competência</strong> da mão de obra ocorre no mês da medição (ciclo 21 a 20), e o <strong>Financeiro</strong> no dia 05 do mês subsequente.
+          Para os <strong>Materiais</strong>, a competência é emitida na entrega (com a antecedência configurada ou dividida em lotes), e o pagamento é deslocado pela <strong>Condição de Pagamento</strong> (ex: <code class="bg-blue-100 px-1 py-0.5 rounded font-mono">28</code> para 28 dias, ou <code class="bg-blue-100 px-1 py-0.5 rounded font-mono">30/60/90</code> para parcelamento em até 6x).
+        </div>
+      </div>
+
+      <!-- Stage Config Table -->
+      <div class="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+              <tr>
+                <th class="py-2.5 px-3 w-20">Código</th>
+                <th class="py-2.5 px-3 min-w-[200px]">Etapa do Orçamento</th>
+                <th class="py-2.5 px-3 w-28 text-center">% Material</th>
+                <th class="py-2.5 px-3 w-28 text-center">% Mão de Obra</th>
+                <th class="py-2.5 px-3 w-32 text-center">Antecedência (dias)</th>
+                <th class="py-2.5 px-3 w-36 text-center">Distribuição</th>
+                <th class="py-2.5 px-3 w-24 text-center">Nº Lotes</th>
+                <th class="py-2.5 px-3 w-40 text-center">Cond. Pgto Material</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+              <template x-for="st in editableCurvasConfigs" :key="st.code">
+                <tr class="hover:bg-slate-50/80 transition">
+                  <!-- Code -->
+                  <td class="py-2 px-3 font-mono text-[11px] font-bold text-slate-600" x-text="st.code"></td>
+                  
+                  <!-- Description -->
+                  <td class="py-2 px-3 font-semibold text-slate-800">
+                    <div class="truncate max-w-[260px]" :title="st.description" x-text="st.description"></div>
+                  </td>
+
+                  <!-- % Material -->
+                  <td class="py-2 px-3 text-center">
+                    <div class="flex items-center justify-center space-x-1">
+                      <input 
+                        type="number" 
+                        min="0" 
+                        max="100" 
+                        step="1"
+                        x-model.number="st.material_pct" 
+                        @input="st.labor_pct = Math.max(0, 100 - (Number(st.material_pct) || 0))"
+                        class="w-16 text-center text-xs font-bold border border-slate-300 rounded px-1 py-1 focus:ring-1 focus:ring-blue-500 outline-none">
+                      <span class="text-slate-400 font-bold">%</span>
+                    </div>
+                  </td>
+
+                  <!-- % Mão de Obra -->
+                  <td class="py-2 px-3 text-center">
+                    <div class="flex items-center justify-center space-x-1">
+                      <input 
+                        type="number" 
+                        min="0" 
+                        max="100" 
+                        step="1"
+                        x-model.number="st.labor_pct" 
+                        @input="st.material_pct = Math.max(0, 100 - (Number(st.labor_pct) || 0))"
+                        class="w-16 text-center text-xs font-bold border border-slate-300 rounded px-1 py-1 focus:ring-1 focus:ring-blue-500 outline-none">
+                      <span class="text-slate-400 font-bold">%</span>
+                    </div>
+                  </td>
+
+                  <!-- Antecedência (dias) -->
+                  <td class="py-2 px-3 text-center">
+                    <div class="flex items-center justify-center space-x-1">
+                      <input 
+                        type="number" 
+                        min="0" 
+                        max="180" 
+                        x-model.number="st.anticipation_days" 
+                        class="w-16 text-center text-xs font-bold border border-slate-300 rounded px-1 py-1 focus:ring-1 focus:ring-blue-500 outline-none">
+                      <span class="text-[11px] text-slate-400">dias</span>
+                    </div>
+                  </td>
+
+                  <!-- Tipo de Distribuição -->
+                  <td class="py-2 px-3 text-center">
+                    <select 
+                      x-model="st.distribution_type" 
+                      @change="if (st.distribution_type === 'lotes' && !st.num_batches) st.num_batches = 5;"
+                      class="text-xs font-semibold bg-white border border-slate-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 outline-none">
+                      <option value="continuo">Contínuo</option>
+                      <option value="lotes">Em Lotes</option>
+                    </select>
+                  </td>
+
+                  <!-- Nº Lotes -->
+                  <td class="py-2 px-3 text-center">
+                    <input 
+                      type="number" 
+                      min="2" 
+                      max="24" 
+                      :disabled="st.distribution_type !== 'lotes'"
+                      :placeholder="st.distribution_type === 'lotes' ? '5' : '-'"
+                      x-model.number="st.num_batches" 
+                      class="w-14 text-center text-xs font-bold border border-slate-300 rounded px-1 py-1 focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed">
+                  </td>
+
+                  <!-- Condição Pagamento Material -->
+                  <td class="py-2 px-3 text-center">
+                    <input 
+                      type="text" 
+                      placeholder="ex: 28 ou 30/60/90"
+                      x-model="st.payment_terms" 
+                      class="w-32 text-center text-xs font-bold border border-slate-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 outline-none"
+                      title="Informe o número de dias (ex: 28) ou parcelas separadas por barra (ex: 30/60/90)">
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
+      <div class="text-[11px] text-slate-500">
+        As configurações são salvas automaticamente na obra ativa.
+      </div>
+      <div class="flex items-center space-x-2">
+        <button 
+          @click="showConfigCurvasModal = false" 
+          class="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition">
+          Cancelar
+        </button>
+        <button 
+          @click="saveCurvasConfig()" 
+          :disabled="isSavingCurvasConfig"
+          class="flex items-center space-x-1.5 px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-sm transition disabled:opacity-50">
+          <i data-lucide="check" class="w-3.5 h-3.5"></i>
+          <span x-text="isSavingCurvasConfig ? 'Salvando...' : 'Salvar & Recalcular'"></span>
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>

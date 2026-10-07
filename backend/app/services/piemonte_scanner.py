@@ -2,6 +2,7 @@ import os
 import json
 import glob
 from typing import List, Dict, Any
+from .split_io import is_split_project, FILES as SPLIT_FILES
 
 DEFAULT_SEARCH_PATHS = [
     r"C:\Users\HomePC\Piemonte Construtora\Piemonte Engenharia - Planejamento",
@@ -41,9 +42,20 @@ def scan_piemonte_projects(base_paths: List[str] = None) -> List[Dict[str, Any]]
                 
                 final_name = custom_name or proj_name.replace("_", " ").title()
                 
-                # Scan for .xlsx files
+                # Split project (one spreadsheet per screen): the folder itself is the "file"
                 files = []
-                for f in os.scandir(entry.path):
+                if is_split_project(entry.path):
+                    split_paths = [os.path.join(entry.path, n) for n in SPLIT_FILES.values() if os.path.exists(os.path.join(entry.path, n))]
+                    files.append({
+                        "filename": "Planilhas separadas (" + ", ".join(os.path.basename(p) for p in split_paths) + ")",
+                        "path": entry.path,
+                        "size_mb": round(sum(os.path.getsize(p) for p in split_paths) / (1024 * 1024), 2),
+                        "modified_time": max(os.path.getmtime(p) for p in split_paths),
+                        "is_split": True
+                    })
+
+                # Scan for .xlsx files
+                for f in ([] if files else os.scandir(entry.path)):
                     if f.is_file() and f.name.endswith(".xlsx") and not f.name.startswith("~$"):
                         files.append({
                             "filename": f.name,
@@ -127,6 +139,9 @@ def scan_piemonte_projects(base_paths: List[str] = None) -> List[Dict[str, Any]]
                         "latest_file": files[0] if files else None,
                         "is_uploaded": False
                     }
+                elif any(f.get("is_split") for f in projects_dict[proj_id]["files"]):
+                    # Already extracted into separate spreadsheets: never fall back to the giant file
+                    continue
                 else:
                     existing_paths = {f["path"] for f in projects_dict[proj_id]["files"]}
                     for f in files:

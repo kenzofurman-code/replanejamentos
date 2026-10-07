@@ -1,0 +1,189 @@
+    <!-- TAB 9: CURVA DE COMPETÊNCIA CONTÁBIL (EMISSÃO DE NOTAS FISCAIS) -->
+    <template x-if="activeTab === 'competencia'">
+      <div class="space-y-4">
+        
+        <!-- Top Toolbar & Controls -->
+        <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center space-x-2">
+              <h3 class="font-bold text-slate-900 text-xs">Curva de Competência Contábil (Emissão de Notas Fiscais)</h3>
+              <span class="text-[10px] px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full font-bold">Lançamentos Contábeis</span>
+            </div>
+            <p class="text-[10px] text-slate-500">Mão de obra no mês da medição (ciclo 21 a 20) + Material com faturamento na entrega em obra (dias de antecedência / lotes)</p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Botão de Configuração de Prazos e Insumos -->
+            <button 
+              @click="openConfigCurvasModal()" 
+              class="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-700 transition shadow-xs">
+              <i data-lucide="sliders" class="w-3.5 h-3.5 text-blue-400"></i>
+              <span>Configurar Prazos & Insumos</span>
+            </button>
+
+            <!-- Level Filter Quick Buttons -->
+            <div class="flex items-center space-x-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-semibold">
+              <span class="text-[10px] text-slate-400 px-1 uppercase font-bold">Nível:</span>
+              <button 
+                @click="levelFilterComp = 2" 
+                :class="levelFilterComp === 2 ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                class="px-2 py-0.5 rounded transition">
+                Até N2
+              </button>
+              <button 
+                @click="levelFilterComp = 3" 
+                :class="levelFilterComp === 3 ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                class="px-2 py-0.5 rounded transition">
+                Até N3 (Padrão)
+              </button>
+              <button 
+                @click="levelFilterComp = 4" 
+                :class="levelFilterComp === 4 ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                class="px-2 py-0.5 rounded transition">
+                Até N4
+              </button>
+              <button 
+                @click="levelFilterComp = 0" 
+                :class="levelFilterComp === 0 ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                class="px-2 py-0.5 rounded transition">
+                Todos
+              </button>
+            </div>
+
+            <!-- View Mode Switcher -->
+            <div class="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-semibold">
+              <button 
+                @click="compViewMode = 'val'" 
+                :class="compViewMode === 'val' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                class="px-2 py-0.5 rounded transition">
+                R$ Total
+              </button>
+              <button 
+                @click="compViewMode = 'mat'" 
+                :class="compViewMode === 'mat' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                class="px-2 py-0.5 rounded transition">
+                R$ Material
+              </button>
+              <button 
+                @click="compViewMode = 'mo'" 
+                :class="compViewMode === 'mo' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                class="px-2 py-0.5 rounded transition">
+                R$ M.O.
+              </button>
+              <button 
+                @click="compViewMode = 'pct'" 
+                :class="compViewMode === 'pct' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                class="px-2 py-0.5 rounded transition">
+                % Obra
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Summary KPI Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs">
+            <span class="text-[10px] uppercase font-bold text-slate-400">Orçamento Total</span>
+            <div class="text-base font-extrabold text-slate-800 mt-0.5" x-text="formatCurrency(replanResult?.total_budget)"></div>
+            <div class="text-[10px] text-slate-500 mt-0.5">Base EAP fechada</div>
+          </div>
+          <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs">
+            <span class="text-[10px] uppercase font-bold text-blue-600">Competência Projetada</span>
+            <div class="text-base font-extrabold text-blue-700 mt-0.5" x-text="formatCurrency(level1CompRow?.total)"></div>
+            <div class="text-[10px] text-blue-500 mt-0.5">100% faturamento previsto</div>
+          </div>
+          <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs">
+            <span class="text-[10px] uppercase font-bold text-amber-600">Material (NF na Entrega)</span>
+            <div class="text-base font-extrabold text-amber-700 mt-0.5" x-text="formatCurrency(level1CompRow?.total_mat)"></div>
+            <div class="text-[10px] text-amber-600 mt-0.5" x-text="level1CompRow?.total ? ((level1CompRow.total_mat / level1CompRow.total)*100).toFixed(1) + '% do total' : '-'"></div>
+          </div>
+          <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs">
+            <span class="text-[10px] uppercase font-bold text-emerald-600">Mão de Obra (Medição Mês)</span>
+            <div class="text-base font-extrabold text-emerald-700 mt-0.5" x-text="formatCurrency(level1CompRow?.total_mo)"></div>
+            <div class="text-[10px] text-emerald-600 mt-0.5" x-text="level1CompRow?.total ? ((level1CompRow.total_mo / level1CompRow.total)*100).toFixed(1) + '% do total' : '-'"></div>
+          </div>
+        </div>
+
+        <!-- Main EAP Table -->
+        <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+          <div class="overflow-x-auto max-h-[600px] 2xl:max-h-[750px] scrollbar-thin">
+            <table class="w-full text-left table-compact border-separate border-spacing-0">
+              <thead class="bg-slate-900 text-white sticky top-0 z-20">
+                <!-- Row 1: Titles -->
+                <tr class="h-[34px]">
+                  <th class="py-1 px-2 w-10 min-w-[40px] max-w-[40px] text-center border-b border-r border-slate-800 sticky top-0 left-0 z-40 bg-slate-900 h-[34px] box-border">Nív</th>
+                  <th class="py-1 px-2 w-28 min-w-[110px] max-w-[110px] border-b border-r border-slate-800 sticky top-0 left-[40px] z-40 bg-slate-900 h-[34px] box-border">Código</th>
+                  <th class="py-1 px-3 w-[300px] min-w-[300px] max-w-[300px] border-b border-r border-slate-800 sticky top-0 left-[150px] z-40 bg-slate-900 h-[34px] box-border">Descrição EAP</th>
+                  <th class="py-1 px-2 w-28 min-w-[110px] max-w-[110px] text-right border-b border-r border-slate-800 sticky top-0 left-[450px] z-40 bg-slate-900 h-[34px] box-border">Orçamento</th>
+                  <th class="py-1 px-2 w-20 min-w-[80px] max-w-[80px] text-right border-b border-r border-slate-800 text-blue-300 sticky top-0 left-[560px] z-40 bg-slate-900 sticky-shadow-header-r h-[34px] box-border">% Obra</th>
+                  
+                  <template x-for="c in activeCyclesList" :key="c.num">
+                    <th class="py-1 px-2 text-right min-w-[85px] border-b border-r border-slate-800 sticky top-0 z-30 bg-slate-900 h-[34px] box-border">
+                      <div class="flex items-center justify-end space-x-1">
+                        <span class="block font-bold text-[11px]" x-text="compViewMode === 'pct' ? c.period_label : (c.period_label + ' (R$)')"></span>
+                      </div>
+                    </th>
+                  </template>
+                  
+                  <th class="py-1 px-2 text-right min-w-[95px] bg-slate-800 border-b border-slate-800 sticky top-0 z-30 h-[34px] box-border" x-text="compViewMode === 'pct' ? 'Total (%)' : 'Total (R$)'"></th>
+                </tr>
+
+                <!-- Row 2: Level 1 Totalizer (Pinned) -->
+                <tr class="h-8">
+                  <th class="py-0.5 px-2 text-center border-b border-r border-neutral-800 sticky top-[34px] left-0 z-35 sticky-level-1 w-10 min-w-[40px] max-w-[40px] font-bold h-8 box-border">1</th>
+                  <th class="py-0.5 px-2 font-mono text-[10px] border-b border-r border-neutral-800 sticky top-[34px] left-[40px] z-35 sticky-level-1 w-28 min-w-[110px] max-w-[110px] font-bold h-8 box-border text-left" x-text="level1CompRow?.code || '1'"></th>
+                  <th class="py-0.5 px-3 border-b border-r border-neutral-800 sticky top-[34px] left-[150px] z-35 sticky-level-1 w-[300px] min-w-[300px] max-w-[300px] font-bold h-8 box-border text-left">
+                    <div class="truncate" x-text="level1CompRow?.description || 'Platea 19 / Total Geral da Obra'"></div>
+                  </th>
+                  <th class="py-0.5 px-2 text-right border-b border-r border-neutral-800 sticky top-[34px] left-[450px] z-35 sticky-level-1 w-28 min-w-[110px] max-w-[110px] font-bold h-8 box-border" x-text="formatCurrency(level1CompRow?.budget || replanResult?.total_budget)"></th>
+                  <th class="py-0.5 px-2 text-right border-b border-r border-neutral-800 sticky top-[34px] left-[560px] z-35 sticky-level-1 w-20 min-w-[80px] max-w-[80px] font-bold text-emerald-300 sticky-shadow-header-r h-8 box-border">100.00%</th>
+                  
+                  <template x-for="c in activeCyclesList" :key="c.num">
+                    <th class="py-0.5 px-2 text-right min-w-[85px] border-b border-r border-neutral-800 sticky top-[34px] z-25 bg-black text-white font-bold h-8 box-border"
+                        x-text="getCompCellValue(level1CompRow, c.num)"></th>
+                  </template>
+
+                  <th class="py-0.5 px-2 text-right min-w-[95px] border-b border-neutral-800 sticky top-[34px] z-25 bg-neutral-900 text-blue-300 font-bold h-8 box-border"
+                      x-text="getCompCellTotal(level1CompRow)"></th>
+                </tr>
+              </thead>
+
+              <tbody class="divide-y divide-slate-200">
+                <template x-for="row in filteredCompRows" :key="row.code">
+                  <tr class="group" :class="getLevelRowClass(row.level)">
+                    <td class="py-0.5 px-2 text-center border-b border-r sticky left-0 z-10 w-10 min-w-[40px] max-w-[40px]" 
+                        :class="getLevelStickyClass(row.level)"
+                        x-text="row.level"></td>
+                    <td class="py-0.5 px-2 font-mono text-[10px] border-b border-r sticky left-[40px] z-10 w-28 min-w-[110px] max-w-[110px]" 
+                        :class="getLevelStickyClass(row.level)"
+                        x-text="row.code"></td>
+                    <td class="py-0.5 px-3 border-b border-r sticky left-[150px] z-10 w-[300px] min-w-[300px] max-w-[300px]" 
+                        :class="getLevelStickyClass(row.level)"
+                        :style="'padding-left: ' + ((row.level-1)*12 + 8) + 'px'">
+                      <div class="truncate" :title="row.description" x-text="row.description"></div>
+                    </td>
+                    <td class="py-0.5 px-2 text-right border-b border-r font-semibold sticky left-[450px] z-10 w-28 min-w-[110px] max-w-[110px]" 
+                        :class="getLevelStickyClass(row.level)"
+                        x-text="formatCurrency(row.budget)"></td>
+                    <td class="py-0.5 px-2 text-right border-b border-r font-bold sticky left-[560px] z-10 w-20 min-w-[80px] max-w-[80px] sticky-shadow-r" 
+                        :class="[getLevelStickyClass(row.level), row.level <= 3 ? 'text-emerald-300' : 'text-blue-700']"
+                        x-text="((row.budget / replanResult?.total_budget) * 100).toFixed(2) + '%'"></td>
+
+                    <template x-for="c in activeCyclesList" :key="c.num">
+                      <td class="py-0.5 px-2 text-right border-b border-r"
+                          x-text="getCompCellValue(row, c.num)">
+                      </td>
+                    </template>
+
+                    <td class="py-0.5 px-2 text-right font-bold border-b border-r" 
+                        :class="row.level <= 3 ? 'text-blue-300' : 'text-blue-800'" 
+                        x-text="getCompCellTotal(row)"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </template>

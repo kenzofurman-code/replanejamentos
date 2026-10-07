@@ -1,0 +1,147 @@
+  <!-- Side Drawer: Task Details & Dependency Editor (ConstruKore inspired) -->
+  <div 
+    x-show="showTaskDrawer" 
+    x-cloak
+    class="fixed inset-0 z-50 overflow-hidden"
+    @keydown.escape.window="showTaskDrawer = false">
+    <!-- Backdrop -->
+    <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity" @click="showTaskDrawer = false"></div>
+    
+    <div class="fixed inset-y-0 right-0 max-w-full flex pl-10">
+      <template x-if="drawerTask">
+        <div class="w-screen max-w-md bg-white shadow-2xl flex flex-col border-l border-slate-200">
+          <!-- Header -->
+          <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="edit-3" class="w-4 h-4 text-blue-400"></i>
+              <div>
+                <span class="text-[10px] text-blue-400 font-bold uppercase tracking-wider">Painel da Atividade</span>
+                <h2 class="text-sm font-bold text-white leading-tight" x-text="drawerTask?.name || 'Detalhes da Atividade'"></h2>
+              </div>
+            </div>
+            <button @click="showTaskDrawer = false" class="text-slate-400 hover:text-white p-1 rounded-lg">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+
+          <!-- Body -->
+          <div class="flex-1 overflow-y-auto p-5 space-y-5 text-xs">
+            <!-- General Info Card -->
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
+              <h4 class="font-bold text-slate-800 text-[11px] uppercase tracking-wide">Informações Gerais</h4>
+              
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-[10px] text-slate-500 font-bold uppercase">ID Tarefa:</label>
+                  <input type="text" :value="drawerTask?.id" disabled class="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-mono text-slate-600">
+                </div>
+                <div>
+                  <label class="block text-[10px] text-slate-500 font-bold uppercase">Lote / Local:</label>
+                  <input type="text" x-model="drawerTask.lot" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-semibold text-slate-800 outline-none">
+                </div>
+              </div>
+
+              <div class="grid grid-cols-3 gap-2">
+                <div>
+                  <label class="block text-[10px] text-slate-500 font-bold uppercase">Duração (dias):</label>
+                  <input type="number" min="1" x-model.number="drawerTask.duration" @change="onDrawerDurationChange()" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-bold text-slate-800 outline-none">
+                </div>
+                <div>
+                  <label class="block text-[10px] text-slate-500 font-bold uppercase">Data Início:</label>
+                  <input type="date" x-model="drawerTask.start_date" @change="onDrawerStartChange()" class="w-full bg-white border border-slate-300 rounded px-1.5 py-1 text-xs outline-none">
+                </div>
+                <div>
+                  <label class="block text-[10px] text-slate-500 font-bold uppercase">Data Término:</label>
+                  <input type="date" x-model="drawerTask.end_date" @change="onDrawerEndChange()" class="w-full bg-white border border-slate-300 rounded px-1.5 py-1 text-xs outline-none">
+                </div>
+              </div>
+            </div>
+
+            <!-- Predecessors Section -->
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 space-y-3 shadow-2xs">
+              <div class="flex items-center justify-between">
+                <h4 class="font-bold text-slate-800 text-[11px] uppercase tracking-wide">Predecessoras (Vínculos)</h4>
+                <span class="text-[10px] text-slate-400 font-semibold" x-text="(drawerTask?.predecessors?.length || 0) + ' vinculadas'"></span>
+              </div>
+
+              <div class="space-y-2">
+                <template x-for="(pred, pIdx) in drawerPredecessors" :key="pIdx">
+                  <div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg p-2 gap-2">
+                    <div class="flex-1 truncate">
+                      <span class="font-bold text-slate-800 font-mono text-[11px]" x-text="'#' + pred.id"></span>
+                      <span class="text-slate-600 text-[11px] ml-1" x-text="pred.name"></span>
+                    </div>
+
+                    <!-- Link Type -->
+                    <select 
+                      x-model="pred.type" 
+                      @change="updateDrawerPred(pIdx)"
+                      class="bg-white border border-slate-300 rounded text-[10px] font-bold py-0.5 px-1 outline-none">
+                      <option value="FS">TI (Término-Início)</option>
+                      <option value="SS">II (Início-Início)</option>
+                      <option value="FF">TT (Término-Término)</option>
+                      <option value="SF">IT (Início-Término)</option>
+                    </select>
+
+                    <!-- Lag Counter -->
+                    <div class="flex items-center border border-slate-300 rounded bg-white overflow-hidden">
+                      <button @click="pred.lag = (pred.lag || 0) - 1; updateDrawerPred(pIdx)" class="px-1.5 py-0.5 text-slate-600 hover:bg-slate-100 font-bold">−</button>
+                      <input type="number" x-model.number="pred.lag" @change="updateDrawerPred(pIdx)" class="w-8 text-center text-[10px] font-bold outline-none">
+                      <button @click="pred.lag = (pred.lag || 0) + 1; updateDrawerPred(pIdx)" class="px-1.5 py-0.5 text-slate-600 hover:bg-slate-100 font-bold">+</button>
+                    </div>
+                    <span class="text-[9px] text-slate-400">dias</span>
+
+                    <!-- Remove Button -->
+                    <button @click="removeDrawerPred(pIdx)" class="text-red-500 hover:text-red-700 p-1 rounded font-bold text-xs">×</button>
+                  </div>
+                </template>
+                
+                <template x-if="!drawerPredecessors.length">
+                  <p class="text-slate-400 text-[11px] italic">Nenhuma predecessora vinculada a esta atividade.</p>
+                </template>
+              </div>
+
+              <!-- Add Predecessor -->
+              <div class="pt-2 border-t border-slate-100 flex items-center space-x-2">
+                <select x-model="selectedNewPredId" class="flex-1 bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs outline-none">
+                  <option value="">+ Adicionar Predecessora...</option>
+                  <template x-for="t in replanResult?.tab_cronograma?.tasks" :key="t.id">
+                    <option :value="t.id" x-text="'#' + t.id + ' - ' + t.name"></option>
+                  </template>
+                </select>
+                <button 
+                  @click="addDrawerPred()" 
+                  :disabled="!selectedNewPredId"
+                  class="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-40 text-xs">
+                  Adicionar
+                </button>
+              </div>
+            </div>
+
+            <!-- Successors Section -->
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 space-y-2 shadow-2xs">
+              <h4 class="font-bold text-slate-800 text-[11px] uppercase tracking-wide">Sucessoras</h4>
+              <div class="flex flex-wrap gap-1.5">
+                <template x-for="sId in drawerTask?.successors || []" :key="sId">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono bg-blue-50 text-blue-700 border border-blue-200" x-text="'#' + sId"></span>
+                </template>
+                <template x-if="!(drawerTask?.successors && drawerTask.successors.length)">
+                  <span class="text-slate-400 text-[11px] italic">Nenhuma sucessora.</span>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div class="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+            <button @click="showTaskDrawer = false" class="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-100 text-xs">Fechar</button>
+            <button @click="saveDrawerTask()" class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-sm flex items-center space-x-1.5">
+              <i data-lucide="check" class="w-3.5 h-3.5"></i>
+              <span>Salvar Alterações</span>
+            </button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+

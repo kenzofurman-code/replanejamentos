@@ -1,0 +1,379 @@
+    <!-- TAB 3: CRONOGRAMA & VERSÕES (TABELA, GANTT & LINHA DE BALANÇO + DRAWER) -->
+    <template x-if="activeTab === 'cronograma'">
+      <div class="space-y-3">
+        <!-- Sub-tabs header -->
+        <div class="bg-white rounded-xl p-2 shadow-xs border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <!-- Sub-tabs switches -->
+          <div class="flex items-center space-x-1 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-semibold">
+            <button 
+              @click="cronoSubTab = 'table'; $nextTick(() => lucide.createIcons())" 
+              :class="cronoSubTab === 'table' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+              class="flex items-center space-x-1.5 px-3 py-1 rounded transition">
+              <i data-lucide="list" class="w-3.5 h-3.5"></i>
+              <span>Tabela Detalhada</span>
+            </button>
+            <button 
+              @click="cronoSubTab = 'gantt'; $nextTick(() => lucide.createIcons())" 
+              :class="cronoSubTab === 'gantt' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+              class="flex items-center space-x-1.5 px-3 py-1 rounded transition">
+              <i data-lucide="gantt-chart" class="w-3.5 h-3.5"></i>
+              <span>Diagrama de Gantt Interativo</span>
+            </button>
+            <button 
+              @click="cronoSubTab = 'lob'; $nextTick(() => lucide.createIcons())" 
+              :class="cronoSubTab === 'lob' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+              class="flex items-center space-x-1.5 px-3 py-1 rounded transition">
+              <i data-lucide="activity" class="w-3.5 h-3.5"></i>
+              <span>Linha de Balanço (LOB)</span>
+            </button>
+          </div>
+
+          <!-- Version Selector & Import Button -->
+          <div class="flex items-center space-x-2">
+            <div class="flex items-center space-x-1 text-xs">
+              <span class="text-slate-500 font-semibold">Versão:</span>
+              <select 
+                x-model="selectedVersionId" 
+                @change="activateVersion('cronograma', selectedVersionId)"
+                class="bg-slate-50 border border-slate-300 text-slate-800 rounded px-2 py-1 text-xs font-semibold outline-none">
+                <template x-for="v in replanResult?.tab_cronograma?.versions" :key="v.id">
+                  <option :value="v.id" x-text="v.name"></option>
+                </template>
+              </select>
+            </div>
+
+            <button 
+              @click="showImportModal = true" 
+              class="flex items-center space-x-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-2.5 py-1 rounded-lg transition shadow-xs">
+              <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+              <span>Importar Cronograma (.mpp/.xml/.xlsx)</span>
+            </button>
+            <button
+              @click="downloadSplitTemplate('cronograma')"
+              title="Baixar a planilha modelo do cronograma"
+              class="flex items-center space-x-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-semibold px-2.5 py-1 rounded-lg transition">
+              <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+              <span>Modelo</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sub-view 1: Tabela Detalhada -->
+        <template x-if="cronoSubTab === 'table'">
+          <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+            <div class="p-3 border-b border-slate-200 flex items-center justify-between">
+              <div class="text-xs text-slate-500">
+                Total de <span class="font-bold text-slate-800" x-text="filteredCronoTasks.length"></span> atividades ordenadas por ID numérico. Clique em uma atividade para editar vínculos e datas.
+              </div>
+              <input 
+                type="text" 
+                x-model="searchCrono" 
+                placeholder="Buscar por ID, atividade, lote ou predecessora..." 
+                class="bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-xs w-72 outline-none">
+            </div>
+
+            <div class="overflow-x-auto max-h-[600px] 2xl:max-h-[750px] scrollbar-thin">
+              <table class="w-full text-left table-compact border-separate border-spacing-0">
+                <thead class="bg-slate-900 text-white sticky top-0 z-20">
+                  <tr class="h-[34px]">
+                    <th class="py-1 px-2 w-14 min-w-[56px] max-w-[56px] text-center border-b border-r border-slate-800 sticky top-0 left-0 z-40 bg-slate-900 h-[34px] box-border">ID</th>
+                    <th class="py-1 px-2 w-20 min-w-[80px] max-w-[80px] text-center border-b border-r border-slate-800 sticky top-0 left-[56px] z-40 bg-slate-900 h-[34px] box-border">EDT</th>
+                    <th class="py-1 px-3 min-w-[340px] border-b border-r border-slate-800 sticky top-0 left-[136px] z-40 bg-slate-900 sticky-shadow-header-r h-[34px] box-border">Atividade</th>
+                    <th class="py-1 px-2 text-center w-16 min-w-[64px] border-b border-r border-slate-800 sticky top-0 z-30 bg-slate-900 h-[34px] box-border">Duração</th>
+                    <th class="py-1 px-2 text-center w-20 min-w-[80px] border-b border-r border-slate-800 sticky top-0 z-30 bg-slate-900 h-[34px] box-border">Início</th>
+                    <th class="py-1 px-2 text-center w-20 min-w-[80px] border-b border-r border-slate-800 sticky top-0 z-30 bg-slate-900 h-[34px] box-border">Término</th>
+                    <th class="py-1 px-2 min-w-[120px] border-b border-r border-slate-800 sticky top-0 z-30 bg-slate-900 h-[34px] box-border">Predecessoras</th>
+                    <th class="py-1 px-2 min-w-[120px] border-b border-r border-slate-800 sticky top-0 z-30 bg-slate-900 h-[34px] box-border">Sucessoras</th>
+                    <th class="py-1 px-2 min-w-[140px] border-b border-r border-slate-800 sticky top-0 z-30 bg-slate-900 h-[34px] box-border">Lote / Pavimento</th>
+                    <th class="py-1 px-2 text-center w-24 min-w-[96px] border-b border-slate-800 sticky top-0 z-30 bg-slate-900 h-[34px] box-border">Tipo / Status</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                  <template x-for="(t, idx) in pagedCronoTasks" :key="t.id || (t.name + '_' + idx)">
+                    <tr @click="openTaskDrawer(t)" 
+                        :class="t.is_summary ? (getLevelRowClass(t.outline_level || 1)) : 'hover:bg-blue-50/60 cursor-pointer transition'">
+                      <td class="py-1 px-2 text-center border-b border-r font-mono text-[11px] font-bold sticky left-0 z-10 w-14 min-w-[56px] max-w-[56px]" 
+                          :class="t.is_summary ? (getLevelStickyClass(t.outline_level || 1)) : 'sticky-level-6 text-blue-700 bg-blue-50/40'" 
+                          x-text="t.id"></td>
+                      <td class="py-1 px-2 text-center border-b border-r font-mono text-[10px] font-semibold sticky left-[56px] z-10 w-20 min-w-[80px] max-w-[80px]" 
+                          :class="t.is_summary ? (getLevelStickyClass(t.outline_level || 1)) : 'sticky-level-6 text-slate-500'" 
+                          x-text="t.wbs || t.outline || '-'"></td>
+                      <td class="py-1 px-3 border-b border-r sticky left-[136px] z-10 min-w-[340px] sticky-shadow-r" 
+                          :class="t.is_summary ? (getLevelStickyClass(t.outline_level || 1)) : 'sticky-level-6'"
+                          :style="'padding-left: ' + (((t.outline_level || 1) - 1) * 16 + 8) + 'px'">
+                        <template x-if="t.is_summary">
+                          <span class="inline-flex items-center space-x-1 mr-1.5" :class="(t.outline_level || 1) <= 3 ? 'text-amber-300' : 'text-amber-600'">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+                          </span>
+                        </template>
+                        <span :class="t.is_summary ? 'font-bold' : 'font-medium text-slate-800'" x-text="t.name"></span>
+                      </td>
+                      <td class="py-1 px-2 text-center border-b border-r font-mono" :class="t.is_summary && (t.outline_level || 1) <= 3 ? 'text-slate-200' : 'text-slate-600'" x-text="t.duration + ' d'"></td>
+                      <td class="py-1 px-2 text-center border-b border-r font-mono text-[10px]" :class="t.is_summary && (t.outline_level || 1) <= 3 ? 'text-slate-200' : 'text-slate-600'" x-text="formatDateBr(t.start_date)"></td>
+                      <td class="py-1 px-2 text-center border-b border-r font-mono text-[10px]" :class="t.is_summary && (t.outline_level || 1) <= 3 ? 'text-slate-200' : 'text-slate-600'" x-text="formatDateBr(t.end_date)"></td>
+                      <td class="py-1 px-2 border-b border-r" :class="t.is_summary && (t.outline_level || 1) <= 3 ? 'text-slate-200' : 'text-slate-600'">
+                        <span class="inline-block bg-slate-100 text-slate-700 text-[10px] px-1.5 py-0.5 rounded font-mono" x-text="t.predecessors && t.predecessors.length > 0 ? t.predecessors.join(', ') : '-'"></span>
+                      </td>
+                      <td class="py-1 px-2 border-b border-r" :class="t.is_summary && (t.outline_level || 1) <= 3 ? 'text-slate-200' : 'text-slate-600'">
+                        <span class="inline-block bg-slate-100 text-slate-700 text-[10px] px-1.5 py-0.5 rounded font-mono" x-text="t.successors && t.successors.length > 0 ? t.successors.join(', ') : '-'"></span>
+                      </td>
+                      <td class="py-1 px-2 border-b border-r font-semibold" :class="t.is_summary && (t.outline_level || 1) <= 3 ? 'text-slate-200' : 'text-slate-700'" x-text="t.lot || 'Geral'"></td>
+                      <td class="py-1 px-2 text-center border-b">
+                        <template x-if="t.is_summary">
+                          <span class="text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                            Agrupador
+                          </span>
+                        </template>
+                        <template x-if="!t.is_summary">
+                          <span 
+                            :class="t.is_future ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-600 border-slate-200'"
+                            class="text-[9px] px-1.5 py-0.5 rounded-full font-bold border" 
+                            x-text="t.is_future ? 'Remanescente' : 'Passada'">
+                          </span>
+                        </template>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+              <!-- Rolagem infinita: o marcador carrega mais linhas quando fica visível -->
+              <div x-init="observeMore($el, 'cronoPage', () => filteredCronoTasks.length)" class="h-1"></div>
+            </div>
+
+            <div class="p-2 border-t border-slate-200 text-xs text-slate-600 bg-slate-50">
+              Mostrando <span class="font-bold" x-text="Math.min(cronoPage * cronoPageSize, filteredCronoTasks.length)"></span> de
+              <span class="font-bold" x-text="filteredCronoTasks.length"></span> atividades
+              <span x-show="cronoPage * cronoPageSize < filteredCronoTasks.length" class="text-slate-400">· role para carregar mais</span>
+            </div>
+          </div>
+        </template>
+
+        <!-- Sub-view 2: Diagrama de Gantt Interativo -->
+        <template x-if="cronoSubTab === 'gantt'">
+          <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-3 space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center space-x-3 text-slate-500">
+                <span>Arraste o meio da barra para mover no tempo. Arraste a borda direita para alterar duração. Clique para abrir detalhes e predecessoras.</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <template x-if="Object.keys(customScheduleOverrides || {}).length > 0">
+                  <button @click="resetScheduleOverrides()" class="px-2.5 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-semibold flex items-center space-x-1 shadow-2xs transition-colors">
+                    <i data-lucide="rotate-ccw" class="w-3 h-3 text-amber-600"></i>
+                    <span>Resetar Alterações (<span x-text="Object.keys(customScheduleOverrides || {}).length"></span>)</span>
+                  </button>
+                </template>
+                <button @click="ganttZoom = Math.max(1.5, ganttZoom - 0.5)" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 border text-xs font-bold">−</button>
+                <span class="text-xs font-semibold text-slate-700" x-text="'Zoom: ' + ganttZoom.toFixed(1) + 'x'"></span>
+                <button @click="ganttZoom = Math.min(8.0, ganttZoom + 0.5)" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 border text-xs font-bold">+</button>
+              </div>
+            </div>
+
+            <div class="relative overflow-x-auto max-h-[600px] border border-slate-200 rounded-lg scrollbar-thin bg-white" id="ganttContainer" @mousemove="onGanttMouseMove($event)" @mouseup="onGanttMouseUp($event)" @mouseup.window="onGanttMouseUp($event)">
+              <div :style="'width: ' + ganttWidth + 'px; min-width: 100%;'" class="relative select-none">
+                
+                <!-- Timeline Month Header (Sticky top) -->
+                <div class="sticky top-0 z-30 flex bg-slate-900 text-white h-9 border-b border-slate-700 shadow-xs">
+                  <!-- Fixed Left Title Column (Solid opaque 100%, z-40) -->
+                  <div class="sticky left-0 z-40 w-96 bg-slate-950 px-3 flex items-center justify-between text-[11px] font-bold text-slate-200 shrink-0 border-r-2 border-slate-800">
+                    <div class="flex items-center space-x-2 min-w-0">
+                      <span class="w-8 text-center text-slate-400 shrink-0">ID</span>
+                      <span class="truncate">Atividade</span>
+                    </div>
+                    <span class="text-[10px] text-slate-400 shrink-0">Duração</span>
+                  </div>
+
+                  <!-- Month Columns -->
+                  <div class="flex-1 relative flex">
+                    <template x-for="m in ganttMonths" :key="m.label">
+                      <div 
+                        class="shrink-0 border-r border-slate-800 px-2 flex items-center justify-center text-[10px] font-bold text-slate-300"
+                        :style="'width: ' + m.width + 'px'"
+                        x-text="m.label">
+                      </div>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- Cutoff Vertical Line (z-10 so it slides behind z-20 sticky column) -->
+                <div 
+                  class="absolute top-0 bottom-0 border-r-2 border-dashed border-red-500 z-10 pointer-events-none" 
+                  :style="'left: ' + (ganttCutoffX + 384) + 'px'">
+                  <span class="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm absolute top-1 -left-8" x-text="'Corte M' + cutoffMedNum"></span>
+                </div>
+
+                <!-- Task Rows -->
+                <div class="divide-y divide-slate-100">
+                  <template x-for="(t, idx) in visibleGanttTasks" :key="t.id || (t.name + '_' + idx)">
+                    <div class="relative h-7 flex items-center group transition-colors" 
+                         :class="t.is_summary ? (t.outline_level === 1 ? 'bg-amber-100/50 font-bold border-b border-amber-200' : 'bg-slate-100/80 font-bold') : (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50')">
+                      <!-- Sticky Left Task Info (Solid 100% opaque, z-20, border-r-2, no transparency leak) -->
+                      <div class="sticky left-0 z-20 w-96 px-3 flex items-center justify-between text-xs shrink-0 border-r-2 border-slate-300 shadow-[2px_0_5px_rgba(0,0,0,0.06)]"
+                           :class="t.is_summary ? 'bg-slate-100 font-bold' : (idx % 2 === 0 ? 'bg-white group-hover:bg-blue-50' : 'bg-slate-50 group-hover:bg-blue-50')"
+                           :style="'padding-left: ' + (((t.outline_level || 1) - 1) * 12 + 8) + 'px'">
+                        <div class="flex items-center space-x-1.5 min-w-0 flex-1 pr-2">
+                          <span class="w-8 text-center font-mono text-[10px] font-bold shrink-0" 
+                                :class="t.is_summary ? 'text-amber-800' : 'text-blue-700'" 
+                                x-text="t.id"></span>
+                          <template x-if="t.is_summary">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3 text-amber-600 shrink-0"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+                          </template>
+                          <span class="truncate text-xs cursor-pointer" 
+                                :class="t.is_summary ? 'font-bold text-slate-900' : 'font-semibold text-slate-800 hover:text-blue-600'"
+                                :title="'#' + t.id + ' (EDT ' + (t.wbs || t.id) + ') - ' + t.name" 
+                                @click="openTaskDrawer(t)" 
+                                x-text="t.name"></span>
+                        </div>
+                        <span class="font-mono text-[11px] font-bold shrink-0 px-1.5 py-0.5 rounded" 
+                              :class="(customScheduleOverrides && (customScheduleOverrides[t.name] || customScheduleOverrides[t.id])) ? 'bg-amber-100 text-amber-900 border border-amber-300' : (t.is_summary ? 'bg-slate-300/80 text-slate-800' : 'bg-slate-200/80 text-slate-600')"
+                              x-text="t.duration + ' d'"></span>
+                      </div>
+
+                      <!-- Gantt Bar Track (z-10 so it slides cleanly behind z-20 sticky column) -->
+                      <div class="flex-1 relative h-full" style="z-index: 10;">
+                        <!-- Summary Bar (MS Project bracket style) -->
+                        <template x-if="t.is_summary">
+                          <div 
+                            class="absolute top-2 h-2.5 bg-slate-900 text-white shadow-xs select-none cursor-pointer hover:bg-slate-700 transition-colors"
+                            :style="'left: ' + getTaskX(t) + 'px; width: ' + Math.max(12, getTaskW(t)) + 'px;'"
+                            @click="openTaskDrawer(t)"
+                            :title="'Agrupador #' + t.id + ' - ' + t.name + ' (' + t.duration + 'd)'">
+                            <!-- Left bracket tip -->
+                            <div class="absolute -left-1 top-0 w-0 h-0 border-t-[8px] border-t-slate-900 border-r-[4px] border-r-transparent"></div>
+                            <!-- Right bracket tip -->
+                            <div class="absolute -right-1 top-0 w-0 h-0 border-t-[8px] border-t-slate-900 border-l-[4px] border-l-transparent"></div>
+                          </div>
+                        </template>
+
+                        <!-- Leaf Task Draggable Bar -->
+                        <template x-if="!t.is_summary">
+                          <div 
+                            class="absolute top-1 h-5 rounded px-1.5 shadow-xs flex items-center justify-between cursor-grab active:cursor-grabbing hover:brightness-110 transition-all select-none"
+                            :class="(customScheduleOverrides && (customScheduleOverrides[t.name] || customScheduleOverrides[t.id])) ? 'bg-amber-500 text-white ring-2 ring-amber-300' : (t.is_future ? 'bg-blue-600 text-white' : 'bg-slate-500 text-white')"
+                            :style="'left: ' + getTaskX(t) + 'px; width: ' + getTaskW(t) + 'px;'"
+                            @mousedown="startTaskDrag($event, t, 'move')"
+                            @click="openTaskDrawer(t)"
+                            :title="'#' + t.id + ' - ' + t.name + ' (' + t.duration + 'd)'">
+                            <span class="text-[9px] font-bold truncate pr-1" x-text="t.duration + 'd'"></span>
+                            <!-- Resize handle -->
+                            <div 
+                              class="w-2 h-full absolute right-0 top-0 bottom-0 cursor-ew-resize hover:bg-amber-400 rounded-r transition-colors"
+                              @mousedown.stop="startTaskDrag($event, t, 'resize')">
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Sub-view 3: Linha de Balanço (LOB) -->
+        <template x-if="cronoSubTab === 'lob'">
+          <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-3 space-y-2">
+            <div class="flex flex-wrap items-center justify-between text-xs gap-3">
+              <div>
+                <h4 class="font-bold text-slate-800 text-xs">Linha de Balanço (Ritmo de Produção por Lote)</h4>
+                <p class="text-[11px] text-slate-500">Fluxo contínuo das equipes através dos pavimentos ao longo do tempo</p>
+              </div>
+              
+              <!-- Filters: Lote Mãe, Pavimento, Ordenação -->
+              <div class="flex flex-wrap items-center gap-3">
+                <!-- Lote Mãe Filter -->
+                <div class="flex items-center space-x-1.5">
+                  <span class="text-[10px] text-slate-400 uppercase font-bold">Lote Mãe:</span>
+                  <select x-model="lobLoteMaeFilter" class="bg-slate-50 border border-slate-300 rounded px-2 py-0.5 text-xs font-semibold outline-none text-slate-800">
+                    <option value="all">Todos os Lotes Mãe</option>
+                    <template x-for="lm in lobUniqueLotesMae" :key="lm">
+                      <option :value="lm" x-text="lm"></option>
+                    </template>
+                  </select>
+                </div>
+
+                <!-- Pavimento / Lote Filter -->
+                <div class="flex items-center space-x-1.5">
+                  <span class="text-[10px] text-slate-400 uppercase font-bold">Pavimento:</span>
+                  <select x-model="lobLotFilter" class="bg-slate-50 border border-slate-300 rounded px-2 py-0.5 text-xs outline-none text-slate-700">
+                    <option value="all">Todos os Pavimentos</option>
+                    <template x-for="l in lobFilteredLots" :key="l">
+                      <option :value="l" x-text="l"></option>
+                    </template>
+                  </select>
+                </div>
+
+                <!-- Vertical Sort Order (Bottom-to-Top) -->
+                <div class="flex items-center space-x-1.5">
+                  <span class="text-[10px] text-slate-400 uppercase font-bold">Ordem:</span>
+                  <select x-model="lobSortOrder" class="bg-slate-50 border border-slate-300 rounded px-2 py-0.5 text-xs font-semibold outline-none text-slate-800">
+                    <option value="bottom-to-top">De baixo para cima (Padrão Engenharia)</option>
+                    <option value="top-to-bottom">De cima para baixo</option>
+                    <option value="alpha">Alfabética</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="relative overflow-x-auto max-h-[600px] border border-slate-200 rounded-lg scrollbar-thin bg-white">
+              <div :style="'width: ' + lobWidth + 'px; min-width: 100%;'" class="relative select-none">
+                
+                <!-- Timeline Month Header (Sticky top) -->
+                <div class="sticky top-0 z-30 flex bg-slate-900 text-white h-9 border-b border-slate-700 shadow-xs">
+                  <!-- Fixed Left Floor/Lot Column -->
+                  <div class="sticky left-0 z-40 w-64 bg-slate-950 px-3 flex items-center text-[11px] font-bold text-slate-200 shrink-0 border-r-2 border-slate-800">
+                    <span>Pavimento / Lote</span>
+                  </div>
+
+                  <!-- Month Columns -->
+                  <div class="flex-1 relative flex">
+                    <template x-for="m in ganttMonths" :key="m.label">
+                      <div 
+                        class="shrink-0 border-r border-slate-800 px-2 flex items-center justify-center text-[10px] font-bold text-slate-300"
+                        :style="'width: ' + m.width + 'px'"
+                        x-text="m.label">
+                      </div>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- Cutoff Vertical Line (z-10 so it passes behind z-20 sticky column) -->
+                <div 
+                  class="absolute top-0 bottom-0 border-r-2 border-dashed border-red-500 z-10 pointer-events-none" 
+                  :style="'left: ' + (ganttCutoffX + 256) + 'px'">
+                  <span class="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm absolute top-1 -left-8" x-text="'Corte M' + cutoffMedNum"></span>
+                </div>
+
+                <!-- Lanes / Lots (Y Axis) -->
+                <div class="divide-y divide-slate-200">
+                  <template x-for="(lot, lIdx) in lobLanes" :key="lot.name">
+                    <div class="relative h-11 flex items-center group transition-colors" :class="lIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50'">
+                      <!-- Sticky Left Lot/Pavimento Label (100% solid, opaque, z-20) -->
+                      <div class="sticky left-0 z-20 w-64 px-3 h-full flex items-center justify-between text-xs shrink-0 border-r-2 border-slate-300 shadow-[2px_0_5px_rgba(0,0,0,0.05)]"
+                           :class="lIdx % 2 === 0 ? 'bg-white group-hover:bg-slate-100' : 'bg-slate-50 group-hover:bg-slate-100'">
+                        <span class="font-bold text-slate-800 text-xs truncate" :title="lot.name" x-text="lot.name"></span>
+                        <span class="text-[10px] font-bold text-slate-500 bg-slate-200/80 rounded px-1.5 py-0.5 font-mono" x-text="lot.tasks.length + ' ativ.'"></span>
+                      </div>
+
+                      <!-- Tasks in this Lot -->
+                      <div class="flex-1 relative h-full" style="z-index: 10;">
+                        <template x-for="(t, tIdx) in lot.tasks" :key="t.id || (t.name + '_' + tIdx)">
+                          <div 
+                            class="absolute top-2 h-7 rounded px-2 flex items-center text-[10px] font-bold text-white shadow-xs cursor-pointer hover:brightness-110 hover:shadow-md transition-all truncate"
+                            :style="'left: ' + getTaskX(t) + 'px; width: ' + Math.max(20, getTaskW(t)) + 'px; background-color: ' + getLobTaskColor(t.name)"
+                            @click="openTaskDrawer(t)"
+                            :title="'#' + t.id + ' - ' + t.name + ' (' + formatDateBr(t.start_date) + ' a ' + formatDateBr(t.end_date) + ')'">
+                            <span class="truncate text-[9px]" x-text="'#' + t.id + ' ' + t.name.split(' - ')[0]"></span>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </template>
+
