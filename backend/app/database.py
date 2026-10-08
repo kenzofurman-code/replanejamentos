@@ -200,6 +200,7 @@ def save_project_to_db(project_id: str, parsed: Dict[str, Any]):
         proj.cutoff_date = str(parsed.get("cutoff_date") or "")
         proj.cutoff_med_num = int(parsed.get("cutoff_med_num") or 0)
         proj.updated_at = _now()
+        session.flush()
 
         # 2. Budget Items
         session.query(BudgetItemModel).filter_by(project_id=project_id).delete()
