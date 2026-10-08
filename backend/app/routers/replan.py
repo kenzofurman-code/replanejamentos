@@ -104,21 +104,30 @@ def simulate_replan(req: ReplanRequest):
             "data": parsed
         }
     else:
-        # Automatically resolve project file from scan_piemonte_projects
-        projs = scan_piemonte_projects()
-        found = next((p for p in projs if p["id"] == req.project_id), None)
-        if found and found.get("latest_file"):
-            fpath = found["latest_file"]["path"]
-            parsed = parse_excel_project(fpath)
+        from ..database import load_project_from_db
+        db_parsed = load_project_from_db(req.project_id) if req.project_id else None
+        if db_parsed:
+            parsed = db_parsed
             PROJECT_CACHE[req.project_id] = {
-                "file_path": fpath,
+                "file_path": None,
                 "data": parsed
             }
         else:
-            raise HTTPException(
-                status_code=400, 
-                detail="Projeto não carregado. Por favor, carregue o projeto primeiro."
-            )
+            # Automatically resolve project file from scan_piemonte_projects
+            projs = scan_piemonte_projects()
+            found = next((p for p in projs if p["id"] == req.project_id), None)
+            if found and found.get("latest_file"):
+                fpath = found["latest_file"]["path"]
+                parsed = parse_excel_project(fpath)
+                PROJECT_CACHE[req.project_id] = {
+                    "file_path": fpath,
+                    "data": parsed
+                }
+            else:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Projeto não carregado. Por favor, carregue o projeto primeiro."
+                )
 
     parsed, schedule_override, version_id, custom_links, custom_schedule = _resolve_versions(req, parsed)
 
@@ -232,7 +241,12 @@ def export_replan(req: ReplanRequest):
     elif req.file_path:
         parsed = parse_excel_project(req.file_path)
     else:
-        raise HTTPException(status_code=400, detail="Projeto não carregado.")
+        from ..database import load_project_from_db
+        db_parsed = load_project_from_db(req.project_id) if req.project_id else None
+        if db_parsed:
+            parsed = db_parsed
+        else:
+            raise HTTPException(status_code=400, detail="Projeto não carregado.")
 
     parsed, schedule_override, _, custom_links, custom_schedule = _resolve_versions(req, parsed)
 

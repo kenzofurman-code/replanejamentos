@@ -112,8 +112,22 @@ def parse_excel_project(file_path: str) -> Dict[str, Any]:
       3. Split project folder (orcamento.xlsx, cronograma.xlsx, ... — see docs/PLANILHAS.md)
     """
     if os.path.isdir(file_path):
+        proj_id = os.path.basename(os.path.normpath(file_path))
+        from ..database import load_project_from_db, save_project_to_db
+        try:
+            cached = load_project_from_db(proj_id)
+            if cached and cached.get("budget_items") and cached.get("tasks"):
+                return cached
+        except Exception as e:
+            print(f"[DB] Notice loading {proj_id}: {e}")
+
         from .split_io import parse_split_project
-        return parse_split_project(file_path)
+        parsed = parse_split_project(file_path)
+        try:
+            save_project_to_db(proj_id, parsed)
+        except Exception as e:
+            print(f"[DB] Notice saving {proj_id}: {e}")
+        return parsed
 
     os.makedirs(CACHE_DIR, exist_ok=True)
     cache_path = get_cache_path(file_path)

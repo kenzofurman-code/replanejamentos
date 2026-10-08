@@ -135,6 +135,13 @@ def get_active(project_id: str, domain: str) -> str:
 def get_edits(project_id: str, domain: str, version_id: Optional[str] = None) -> Dict[str, Any]:
     idx = load_index(project_id)
     vid = version_id or idx[domain]["active"]
+    try:
+        from ..database import get_domain_edits_db
+        db_edits = get_domain_edits_db(project_id, domain, vid)
+        if db_edits:
+            return db_edits
+    except Exception:
+        pass
     return idx[domain]["edits"].get(vid) or {}
 
 
@@ -146,6 +153,11 @@ def save_edits(project_id: str, domain: str, edits: Dict[str, Any]):
     else:
         idx[domain]["edits"].pop(vid, None)
     save_index(project_id, idx)
+    try:
+        from ..database import save_domain_edits_db
+        save_domain_edits_db(project_id, domain, vid, edits)
+    except Exception as e:
+        print(f"[DB] Notice saving edits for {project_id}/{domain}: {e}")
 
 
 def summary(project_id: str, cronograma_versions=None) -> Dict[str, Any]:
