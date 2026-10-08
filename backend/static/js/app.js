@@ -114,6 +114,7 @@
 
         // Task Drawer State
         showTaskDrawer: false,
+        isSavingDrawer: false,
         drawerTask: null,
         drawerPredecessors: [],
         selectedNewPredId: "",
@@ -1070,24 +1071,32 @@
         },
 
         async saveDrawerTask() {
-          if (!this.drawerTask) return;
-          const taskList = this.replanResult?.tab_cronograma?.tasks || [];
-          const idx = taskList.findIndex(t => t.id === this.drawerTask.id || t.name === this.drawerTask.name);
-          if (idx !== -1) {
-            taskList[idx] = JSON.parse(JSON.stringify(this.drawerTask));
+          if (!this.drawerTask || this.isSavingDrawer) return;
+          this.isSavingDrawer = true;
+          try {
+            const taskList = this.replanResult?.tab_cronograma?.tasks || [];
+            const idx = taskList.findIndex(t => t.id === this.drawerTask.id || t.name === this.drawerTask.name);
+            if (idx !== -1) {
+              taskList[idx] = JSON.parse(JSON.stringify(this.drawerTask));
+            }
+            const key = String(this.drawerTask.id || this.drawerTask.name);
+            if (!this.customScheduleOverrides) this.customScheduleOverrides = {};
+            this.customScheduleOverrides[key] = {
+              id: this.drawerTask.id,
+              name: this.drawerTask.name,
+              duration: this.drawerTask.duration,
+              start_date: this.drawerTask.start_date,
+              end_date: this.drawerTask.end_date,
+              predecessors: this.drawerTask.predecessors || []
+            };
+            await this.runSimulation();
+            this.showTaskDrawer = false;
+          } catch (err) {
+            console.error("Erro ao salvar tarefa:", err);
+            alert("Erro ao salvar alterações da tarefa.");
+          } finally {
+            this.isSavingDrawer = false;
           }
-          const key = String(this.drawerTask.id || this.drawerTask.name);
-          if (!this.customScheduleOverrides) this.customScheduleOverrides = {};
-          this.customScheduleOverrides[key] = {
-            id: this.drawerTask.id,
-            name: this.drawerTask.name,
-            duration: this.drawerTask.duration,
-            start_date: this.drawerTask.start_date,
-            end_date: this.drawerTask.end_date,
-            predecessors: this.drawerTask.predecessors || []
-          };
-          this.showTaskDrawer = false;
-          await this.runSimulation();
         },
 
         // --- Gantt & LOB Math ---

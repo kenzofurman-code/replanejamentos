@@ -79,11 +79,16 @@ def _resolve_versions(req: "ReplanRequest", parsed: Dict[str, Any]):
         if found_v:
             schedule_override = found_v["tasks"]
         else:
-            version_id = "atual"
     custom_links = req.custom_links_by_l5
     if custom_links is None:
         custom_links = vstore.get_edits(req.project_id, "distribuicao").get("links_by_l5")
-    return parsed, schedule_override, version_id, custom_links
+
+    custom_schedule = req.custom_schedule_overrides
+    if not custom_schedule:
+        crono_edits = vstore.get_edits(req.project_id, "cronograma")
+        custom_schedule = crono_edits.get("schedule_overrides") or None
+
+    return parsed, schedule_override, version_id, custom_links, custom_schedule
 
 @router.post("/simulate")
 def simulate_replan(req: ReplanRequest):
@@ -115,7 +120,7 @@ def simulate_replan(req: ReplanRequest):
                 detail="Projeto não carregado. Por favor, carregue o projeto primeiro."
             )
 
-    parsed, schedule_override, version_id, custom_links = _resolve_versions(req, parsed)
+    parsed, schedule_override, version_id, custom_links, custom_schedule = _resolve_versions(req, parsed)
 
     try:
         result = run_replan_calculation(
@@ -130,7 +135,7 @@ def simulate_replan(req: ReplanRequest):
             custom_monthly_medicao_l6=req.custom_monthly_medicao_l6,
             custom_weights=req.custom_weights,
             schedule_tasks_override=schedule_override,
-            custom_schedule_overrides=req.custom_schedule_overrides,
+            custom_schedule_overrides=custom_schedule,
             custom_links_by_l5=custom_links
         )
         
@@ -229,7 +234,7 @@ def export_replan(req: ReplanRequest):
     else:
         raise HTTPException(status_code=400, detail="Projeto não carregado.")
 
-    parsed, schedule_override, _, custom_links = _resolve_versions(req, parsed)
+    parsed, schedule_override, _, custom_links, custom_schedule = _resolve_versions(req, parsed)
 
     result = run_replan_calculation(
         parsed_data=parsed,
@@ -243,7 +248,7 @@ def export_replan(req: ReplanRequest):
         custom_monthly_medicao_l6=req.custom_monthly_medicao_l6,
         custom_weights=req.custom_weights,
         schedule_tasks_override=schedule_override,
-        custom_schedule_overrides=req.custom_schedule_overrides,
+        custom_schedule_overrides=custom_schedule,
         custom_links_by_l5=custom_links
     )
 
