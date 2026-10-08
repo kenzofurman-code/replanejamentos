@@ -20,9 +20,11 @@ if not DATABASE_URL:
     db_path = os.path.join(db_dir, "replanejamento.db").replace("\\", "/")
     DATABASE_URL = f"sqlite:///{db_path}"
 
-# Handle postgres:// vs postgresql:// for SQLAlchemy
+# Handle postgres:// vs postgresql:// for SQLAlchemy using psycopg2 driver
 if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg2://", 1)
+elif DATABASE_URL.startswith("postgresql://") and not DATABASE_URL.startswith("postgresql+"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 
