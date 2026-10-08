@@ -79,6 +79,7 @@ def _resolve_versions(req: "ReplanRequest", parsed: Dict[str, Any]):
         if found_v:
             schedule_override = found_v["tasks"]
         else:
+            version_id = "atual"
     custom_links = req.custom_links_by_l5
     if custom_links is None:
         custom_links = vstore.get_edits(req.project_id, "distribuicao").get("links_by_l5")
