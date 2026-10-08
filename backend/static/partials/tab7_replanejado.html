@@ -162,9 +162,13 @@
                   <td class="py-0.5 px-3 border-b border-r sticky left-[150px] z-10 w-[280px] min-w-[280px] max-w-[280px]" 
                       :class="row.level === 6 ? 'sticky-level-6' : getLevelStickyClass(row.level)" 
                       :style="'padding-left: ' + (row.level === 6 ? '32px' : ((row.level-1)*12 + 8) + 'px')">
-                    <div class="truncate" :title="row.description">
-                      <span x-show="row.level === 6" class="text-indigo-500 mr-1 font-bold">↳</span>
-                      <span x-text="row.description"></span>
+                    <div class="truncate flex items-center" 
+                         :class="row.level === 6 ? 'cursor-pointer hover:text-indigo-600 transition-colors group/task' : ''"
+                         @click="row.level === 6 && openTaskDrawerFromRow(row)"
+                         :title="row.level === 6 ? 'Clique para editar as datas e duração da atividade \'' + row.description + '\' no Cronograma' : row.description">
+                      <span x-show="row.level === 6" class="text-indigo-500 mr-1 font-bold shrink-0">↳</span>
+                      <span class="truncate" :class="row.level === 6 ? 'group-hover/task:underline font-medium' : ''" x-text="row.description"></span>
+                      <i x-show="row.level === 6" data-lucide="edit-2" class="w-2.5 h-2.5 ml-1.5 opacity-0 group-hover/task:opacity-100 text-indigo-500 transition-opacity shrink-0"></i>
                     </div>
                   </td>
                   <td class="py-0.5 px-2 text-right border-b border-r font-semibold sticky left-[430px] z-10 w-24 min-w-[96px] max-w-[96px]" 

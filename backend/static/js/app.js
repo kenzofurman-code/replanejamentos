@@ -983,6 +983,31 @@
           this.$nextTick(() => lucide.createIcons());
         },
 
+        openTaskDrawerFromRow(row) {
+          if (!row || row.level !== 6) return;
+          const tasks = this.replanResult?.tab_cronograma?.tasks || [];
+          let target = null;
+          if (row.task_id) {
+            target = tasks.find(t => String(t.id) === String(row.task_id));
+          }
+          const searchName = (row.task_name || row.description || "").trim().toLowerCase();
+          if (!target && searchName) {
+            target = tasks.find(t => (t.name || "").trim().toLowerCase() === searchName);
+          }
+          if (!target && searchName) {
+            target = tasks.find(t => {
+              const tn = (t.name || "").trim().toLowerCase();
+              return tn.startsWith(searchName) || searchName.startsWith(tn);
+            });
+          }
+          if (target) {
+            this.openTaskDrawer(target);
+          } else {
+            console.warn("Atividade do cronograma não encontrada para a linha:", row);
+            alert(`Atividade "${row.description}" não encontrada no cronograma ativo.`);
+          }
+        },
+
         updateDrawerPred(pIdx) {
           this.rebuildDrawerPredecessorsStrings();
           this.syncDrawerWithPredecessors();

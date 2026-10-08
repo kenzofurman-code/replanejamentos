@@ -120,11 +120,15 @@
                       :class="row.level === 5 ? 'sticky-level-5' : 'sticky-level-6'"
                       x-text="row.code"></td>
                   <td class="py-0.5 px-3 border-b border-r sticky left-[150px] z-10 w-[280px] min-w-[280px] max-w-[280px]" 
-                      :class="row.level === 5 ? 'sticky-level-5' : 'sticky-level-6'"
+                      :class="row.level === 5 ? 'sticky-level-5' : 'sticky-level-6'" 
                       :style="'padding-left: ' + (row.level === 6 ? '24px' : '8px')">
-                    <div class="truncate" :title="row.description">
-                      <span x-show="row.level === 6" class="text-blue-500 mr-1 font-bold">↳</span>
-                      <span x-text="row.description"></span>
+                    <div class="truncate flex items-center" 
+                         :class="row.level === 6 ? 'cursor-pointer hover:text-blue-600 transition-colors group/disttask' : ''"
+                         @click="row.level === 6 && openTaskDrawerFromRow(row)"
+                         :title="row.level === 6 ? 'Clique para editar as datas e duração da atividade \'' + row.description + '\' no Cronograma' : row.description">
+                      <span x-show="row.level === 6" class="text-blue-500 mr-1 font-bold shrink-0">↳</span>
+                      <span class="truncate" :class="row.level === 6 ? 'group-hover/disttask:underline font-medium' : ''" x-text="row.description"></span>
+                      <i x-show="row.level === 6" data-lucide="edit-2" class="w-2.5 h-2.5 ml-1.5 opacity-0 group-hover/disttask:opacity-100 text-blue-500 transition-opacity shrink-0"></i>
                     </div>
                   </td>
 
