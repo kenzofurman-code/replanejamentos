@@ -246,4 +246,82 @@ def test_export_competencia_financeiro():
     assert len(buf_fin.getvalue()) > 0
 
 
+def test_hierarchical_cascading_inheritance():
+    from backend.app.services.competence_finance_engine import resolve_stage_config, compute_competence_and_cashflow
+
+    budget_items = [
+        {"level": 1, "code": "01", "description": "Obra"},
+        {"level": 2, "code": "01.01", "description": "Estrutura", "parent_code": "01"},
+        {"level": 3, "code": "01.01.01", "description": "Infraestrutura", "parent_code": "01.01"},
+        {"level": 4, "code": "01.01.01.01", "description": "Fundações", "parent_code": "01.01.01"},
+        {"level": 4, "code": "01.01.01.02", "description": "Blocos de Coroamento", "parent_code": "01.01.01"},
+    ]
+
+    # Configura apenas no Nível 2 (01.01) e personaliza uma das folhas (01.01.01.02)
+    stage_configs = {
+        "01.01": {
+            "code": "01.01",
+            "material_pct": 75.0,
+            "labor_pct": 25.0,
+            "anticipation_days": 25,
+            "distribution_type": "continuo",
+            "payment_terms": "30/60"
+        },
+        "01.01.01.02": {
+            "code": "01.01.01.02",
+            "material_pct": 50.0,
+            "labor_pct": 50.0,
+            "anticipation_days": 10,
+            "distribution_type": "lotes",
+            "num_batches": 3,
+            "payment_terms": "14"
+        }
+    }
+
+    # 1. 01.01.01 (Nível 3) deve herdar do Nível 2 (01.01)
+    cfg_n3 = resolve_stage_config("01.01.01", budget_items, stage_configs)
+    assert cfg_n3["material_pct"] == 75.0
+    assert cfg_n3["labor_pct"] == 25.0
+    assert cfg_n3["anticipation_days"] == 25
+    assert cfg_n3["payment_terms"] == "30/60"
+    assert "Herdado de 01.01" in cfg_n3.get("source", "")
+
+    # 2. 01.01.01.01 (Nível 4) não tem config própria -> deve herdar de 01.01
+    cfg_n4_1 = resolve_stage_config("01.01.01.01", budget_items, stage_configs)
+    assert cfg_n4_1["material_pct"] == 75.0
+    assert cfg_n4_1["payment_terms"] == "30/60"
+
+    # 3. 01.01.01.02 (Nível 4) tem config própria -> deve respeitar seus valores personalizados
+    cfg_n4_2 = resolve_stage_config("01.01.01.02", budget_items, stage_configs)
+    assert cfg_n4_2["material_pct"] == 50.0
+    assert cfg_n4_2["labor_pct"] == 50.0
+    assert cfg_n4_2["anticipation_days"] == 10
+    assert cfg_n4_2["distribution_type"] == "lotes"
+    assert cfg_n4_2["num_batches"] == 3
+    assert cfg_n4_2["payment_terms"] == "14"
+
+
+def test_curvas_config_all_eap_levels_excel():
+    from backend.app.services.competence_finance_engine import generate_curvas_config_excel, parse_curvas_config_excel
+
+    configs = [
+        {"level": 2, "code": "01.01", "description": "Estrutura", "material_pct": 70.0, "labor_pct": 30.0, "anticipation_days": 20, "distribution_type": "continuo", "payment_terms": "28", "source": "Personalizado"},
+        {"level": 3, "code": "01.01.01", "description": "Infra", "material_pct": 70.0, "labor_pct": 30.0, "anticipation_days": 20, "distribution_type": "continuo", "payment_terms": "28", "source": "Herdado de 01.01"},
+        {"level": 4, "code": "01.01.01.01", "description": "Estacas", "material_pct": 80.0, "labor_pct": 20.0, "anticipation_days": 10, "distribution_type": "lotes", "num_batches": 2, "payment_terms": "15", "source": "Personalizado"},
+    ]
+
+    raw_excel = generate_curvas_config_excel(configs)
+    assert len(raw_excel) > 0
+
+    parsed = parse_curvas_config_excel(raw_excel)
+    assert "01.01" in parsed
+    assert "01.01.01" in parsed
+    assert "01.01.01.01" in parsed
+
+    assert parsed["01.01.01.01"]["material_pct"] == 80.0
+    assert parsed["01.01.01.01"]["distribution_type"] == "lotes"
+    assert parsed["01.01.01.01"]["num_batches"] == 2
+    assert parsed["01.01.01.01"]["payment_terms"] == "15"
+
+
 

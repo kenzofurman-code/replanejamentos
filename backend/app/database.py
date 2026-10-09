@@ -517,3 +517,44 @@ def get_domain_edits_db(project_id: str, domain: str, version_id: Optional[str] 
         return {}
     finally:
         session.close()
+
+
+def save_curvas_config_db(project_id: str, configs: Dict[str, Any]):
+    """Saves curvas stage parameters in the database."""
+    init_db()
+    session = SessionLocal()
+    try:
+        record = session.query(VersionEditsModel).filter_by(
+            project_id=project_id, domain="curvas_config", version_id="atual"
+        ).first()
+        if not record:
+            record = VersionEditsModel(
+                project_id=project_id,
+                domain="curvas_config",
+                version_id="atual"
+            )
+            session.add(record)
+        record.edits_json = json.dumps(configs, ensure_ascii=False)
+        record.updated_at = _now()
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        raise e
+    finally:
+        session.close()
+
+
+def get_curvas_config_db(project_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieves curvas stage parameters from the database."""
+    init_db()
+    session = SessionLocal()
+    try:
+        record = session.query(VersionEditsModel).filter_by(
+            project_id=project_id, domain="curvas_config", version_id="atual"
+        ).first()
+        if record and record.edits_json:
+            return json.loads(record.edits_json)
+        return None
+    finally:
+        session.close()
+

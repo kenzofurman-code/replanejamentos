@@ -87,6 +87,9 @@
         showConfigCurvasModal: false,
         editableCurvasConfigs: [],
         isSavingCurvasConfig: false,
+        searchCurvasConfig: "",
+        curvasLevelFilter: 0,
+        collapsedCurvasNodes: {},
         comparisonChartInstance: null,
 
         // Pagination
@@ -1551,13 +1554,160 @@
         },
 
         openConfigCurvasModal() {
+          this.searchCurvasConfig = "";
+          this.curvasLevelFilter = 0;
+          this.collapsedCurvasNodes = {};
           if (this.replanResult?.stage_configs && this.replanResult.stage_configs.length > 0) {
             this.editableCurvasConfigs = JSON.parse(JSON.stringify(this.replanResult.stage_configs));
           } else {
             this.fetchCurvasConfig();
           }
           this.showConfigCurvasModal = true;
-          this.$nextTick(() => lucide.createIcons());
+          this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+        },
+
+        get filteredCurvasConfigs() {
+          let list = this.editableCurvasConfigs || [];
+          const q = (this.searchCurvasConfig || '').trim().toLowerCase();
+          
+          if (q) {
+            return list.filter(st => 
+              (st.code && st.code.toLowerCase().includes(q)) || 
+              (st.description && st.description.toLowerCase().includes(q))
+            );
+          }
+          
+          if (this.curvasLevelFilter > 0) {
+            list = list.filter(st => (st.level || 2) <= this.curvasLevelFilter);
+          }
+          
+          // Oculta nós cujos ancestrais estejam colapsados
+          const collapsed = this.collapsedCurvasNodes || {};
+          return list.filter(st => {
+            const code = st.code || '';
+            const parts = code.split('.');
+            for (let i = 1; i < parts.length; i++) {
+              const ancestorCode = parts.slice(0, i).join('.');
+              if (collapsed[ancestorCode]) return false;
+            }
+            return true;
+          });
+        },
+
+        hasCurvasChildren(code) {
+          if (!code) return false;
+          const prefix = code + '.';
+          return (this.editableCurvasConfigs || []).some(st => (st.code || '').startsWith(prefix));
+        },
+
+        isCurvasNodeCollapsed(code) {
+          return !!this.collapsedCurvasNodes[code];
+        },
+
+        toggleCurvasNode(code) {
+          this.collapsedCurvasNodes[code] = !this.collapsedCurvasNodes[code];
+          this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+        },
+
+        expandAllCurvasNodes() {
+          this.collapsedCurvasNodes = {};
+          this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+        },
+
+        collapseAllCurvasNodes() {
+          const map = {};
+          (this.editableCurvasConfigs || []).forEach(st => {
+            if (st.level && st.level < 5 && this.hasCurvasChildren(st.code)) {
+              map[st.code] = true;
+            }
+          });
+          this.collapsedCurvasNodes = map;
+          this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+        },
+
+        onCurvasStageEdited(st, field) {
+          if (!st) return;
+          if (field === 'material_pct') {
+            const m = Math.max(0, Math.min(100, Number(st.material_pct) || 0));
+            st.material_pct = m;
+            st.labor_pct = Math.round((100 - m) * 100) / 100;
+          } else if (field === 'labor_pct') {
+            const l = Math.max(0, Math.min(100, Number(st.labor_pct) || 0));
+            st.labor_pct = l;
+            st.material_pct = Math.round((100 - l) * 100) / 100;
+          }
+
+          st.is_custom = true;
+          st.source = "Personalizado";
+
+          // Propagação em cascata para todos os descendentes que herdam deste nó
+          const prefix = st.code + '.';
+          (this.editableCurvasConfigs || []).forEach(desc => {
+            if ((desc.code || '').startsWith(prefix)) {
+              if (!desc.is_custom || (desc.source && desc.source.startsWith("Herdado de"))) {
+                desc.material_pct = st.material_pct;
+                desc.labor_pct = st.labor_pct;
+                desc.anticipation_days = st.anticipation_days;
+                desc.distribution_type = st.distribution_type;
+                desc.num_batches = st.num_batches;
+                desc.payment_terms = st.payment_terms;
+                desc.is_custom = false;
+                desc.source = `Herdado de ${st.code}`;
+              }
+            }
+          });
+        },
+
+        resetToInherited(st) {
+          if (!st || !st.code) return;
+          const parts = st.code.split('.');
+          let parentCfg = null;
+          
+          for (let i = parts.length - 1; i >= 1; i--) {
+            const pCode = parts.slice(0, i).join('.');
+            const found = (this.editableCurvasConfigs || []).find(c => c.code === pCode);
+            if (found) {
+              parentCfg = found;
+              break;
+            }
+          }
+
+          if (parentCfg) {
+            st.material_pct = parentCfg.material_pct;
+            st.labor_pct = parentCfg.labor_pct;
+            st.anticipation_days = parentCfg.anticipation_days;
+            st.distribution_type = parentCfg.distribution_type;
+            st.num_batches = parentCfg.num_batches;
+            st.payment_terms = parentCfg.payment_terms;
+            st.is_custom = false;
+            st.source = `Herdado de ${parentCfg.code}`;
+          } else {
+            st.material_pct = 60.0;
+            st.labor_pct = 40.0;
+            st.anticipation_days = 15;
+            st.distribution_type = "continuo";
+            st.num_batches = null;
+            st.payment_terms = "28";
+            st.is_custom = false;
+            st.source = "Padrão da Obra";
+          }
+
+          // Propaga o reset para descendentes dependentes
+          const prefix = st.code + '.';
+          (this.editableCurvasConfigs || []).forEach(desc => {
+            if ((desc.code || '').startsWith(prefix)) {
+              if (!desc.is_custom || (desc.source && desc.source.startsWith("Herdado de"))) {
+                desc.material_pct = st.material_pct;
+                desc.labor_pct = st.labor_pct;
+                desc.anticipation_days = st.anticipation_days;
+                desc.distribution_type = st.distribution_type;
+                desc.num_batches = st.num_batches;
+                desc.payment_terms = st.payment_terms;
+                desc.is_custom = false;
+                desc.source = `Herdado de ${st.source.startsWith("Herdado de") ? st.source.replace("Herdado de ", "") : st.code}`;
+              }
+            }
+          });
         },
 
         async fetchCurvasConfig() {
@@ -1623,6 +1773,7 @@
             event.target.value = "";
           }
         },
+
 
 
         get filteredBudgetRows() {

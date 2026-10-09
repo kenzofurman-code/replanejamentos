@@ -1,13 +1,13 @@
-<!-- MODAL DE CONFIGURAÇÃO DE PRAZOS, INSUMOS & ENTREGAS POR ETAPA -->
+<!-- MODAL DE CONFIGURAÇÃO DE PRAZOS, INSUMOS & ENTREGAS POR ETAPA (ÁRVORE EAP COMPLETA) -->
 <div 
   x-show="showConfigCurvasModal" 
   x-cloak
-  class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6"
+  class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 md:p-6"
   @keydown.escape.window="showConfigCurvasModal = false">
   
   <div 
     @click.away="showConfigCurvasModal = false"
-    class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
     
     <!-- Modal Header -->
     <div class="px-6 py-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-white shrink-0">
@@ -16,8 +16,8 @@
           <i data-lucide="sliders" class="w-5 h-5"></i>
         </div>
         <div>
-          <h3 class="font-bold text-sm tracking-wide">Configuração de Prazos, Insumos & Entregas por Etapa</h3>
-          <p class="text-[11px] text-slate-400">Parametrize Material vs Mão de Obra, dias de antecedência, parcelamento em lotes e prazos de faturamento</p>
+          <h3 class="font-bold text-sm tracking-wide">Configuração de Prazos, Insumos & Entregas por Etapa (EAP)</h3>
+          <p class="text-[11px] text-slate-400">Parametrize Material vs Mão de Obra e prazos. As definições no Nível 2 propagam automaticamente para os subníveis (3, 4 e 5) por herança.</p>
         </div>
       </div>
 
@@ -25,10 +25,10 @@
         <!-- Download Template Excel -->
         <button 
           @click="downloadCurvasTemplate()" 
-          title="Baixar planilha modelo com as etapas da obra"
+          title="Baixar planilha modelo Excel com toda a árvore da EAP"
           class="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700 transition">
           <i data-lucide="download" class="w-3.5 h-3.5 text-blue-400"></i>
-          <span>Modelo Excel</span>
+          <span>Modelo Excel (EAP Completa)</span>
         </button>
 
         <!-- Import Template Excel -->
@@ -49,16 +49,112 @@
       </div>
     </div>
 
+    <!-- Modal Controls & Filter Bar -->
+    <div class="px-6 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0 text-xs">
+      
+      <!-- Search Input -->
+      <div class="relative w-full sm:w-72">
+        <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+        <input 
+          type="text" 
+          x-model="searchCurvasConfig"
+          placeholder="Buscar código ou descrição..." 
+          class="w-full pl-8 pr-7 py-1.5 bg-white border border-slate-300 rounded-lg text-xs placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+        <button 
+          x-show="searchCurvasConfig" 
+          @click="searchCurvasConfig = ''"
+          class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+          <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+
+      <!-- Level Filter Pills & Tree Expand/Collapse -->
+      <div class="flex items-center flex-wrap gap-2">
+        <span class="text-slate-500 font-medium text-[11px]">Profundidade:</span>
+        <div class="inline-flex rounded-lg border border-slate-300 bg-white p-0.5 shadow-2xs">
+          <button 
+            @click="curvasLevelFilter = 0"
+            :class="curvasLevelFilter === 0 ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 hover:text-slate-900'"
+            class="px-2.5 py-1 rounded text-[11px] transition">
+            Todos
+          </button>
+          <button 
+            @click="curvasLevelFilter = 2"
+            :class="curvasLevelFilter === 2 ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 hover:text-slate-900'"
+            class="px-2.5 py-1 rounded text-[11px] transition">
+            Nível 2
+          </button>
+          <button 
+            @click="curvasLevelFilter = 3"
+            :class="curvasLevelFilter === 3 ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 hover:text-slate-900'"
+            class="px-2.5 py-1 rounded text-[11px] transition">
+            Até N3
+          </button>
+          <button 
+            @click="curvasLevelFilter = 4"
+            :class="curvasLevelFilter === 4 ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 hover:text-slate-900'"
+            class="px-2.5 py-1 rounded text-[11px] transition">
+            Até N4
+          </button>
+          <button 
+            @click="curvasLevelFilter = 5"
+            :class="curvasLevelFilter === 5 ? 'bg-blue-600 text-white font-bold' : 'text-slate-600 hover:text-slate-900'"
+            class="px-2.5 py-1 rounded text-[11px] transition">
+            Até N5
+          </button>
+        </div>
+
+        <div class="h-4 w-px bg-slate-300 mx-1"></div>
+
+        <!-- Expand / Collapse All -->
+        <button 
+          @click="expandAllCurvasNodes()"
+          title="Expandir todas as etapas da árvore"
+          class="px-2 py-1 bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 rounded text-[11px] font-medium transition">
+          Expandir Tudo
+        </button>
+        <button 
+          @click="collapseAllCurvasNodes()"
+          title="Recolher etapas filhas"
+          class="px-2 py-1 bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 rounded text-[11px] font-medium transition">
+          Recolher Subníveis
+        </button>
+      </div>
+
+    </div>
+
     <!-- Modal Body (Table of Stages) -->
-    <div class="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
+    <div class="p-4 sm:p-6 overflow-y-auto flex-1 space-y-3">
       
       <!-- Info Banner -->
       <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-start space-x-3 text-xs text-blue-900">
         <i data-lucide="info" class="w-4 h-4 text-blue-600 shrink-0 mt-0.5"></i>
         <div class="leading-relaxed">
-          <strong>Como funciona:</strong>
-          A <strong>Competência</strong> da mão de obra ocorre no mês da medição (ciclo 21 a 20), e o <strong>Financeiro</strong> no dia 05 do mês subsequente.
-          Para os <strong>Materiais</strong>, a competência é emitida na entrega (com a antecedência configurada ou dividida em lotes), e o pagamento é deslocado pela <strong>Condição de Pagamento</strong> (ex: <code class="bg-blue-100 px-1 py-0.5 rounded font-mono">28</code> para 28 dias, ou <code class="bg-blue-100 px-1 py-0.5 rounded font-mono">30/60/90</code> para parcelamento em até 6x).
+          <strong>Herança em Cascata:</strong>
+          Ao ajustar os percentuais ou prazos no <strong>Nível 2</strong>, todos os subníveis (3, 4 e 5) herdam automaticamente esses mesmos valores. 
+          Se você desejar um comportamento específico para uma subetapa, basta editá-la individualmente — ela passará a ser marcada como <em>Personalizada</em> e manterá sua configuração própria.
+        </div>
+      </div>
+
+      <!-- Counter -->
+      <div class="flex items-center justify-between text-[11px] text-slate-500 px-1">
+        <div>
+          Exibindo <span class="font-bold text-slate-800" x-text="(filteredCurvasConfigs || []).length"></span> etapas 
+          de um total de <span class="font-bold text-slate-800" x-text="(editableCurvasConfigs || []).length"></span> na EAP
+        </div>
+        <div class="flex items-center space-x-3">
+          <span class="inline-flex items-center space-x-1">
+            <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+            <span>Nível 2 (Macro)</span>
+          </span>
+          <span class="inline-flex items-center space-x-1">
+            <span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span>
+            <span>Nível 3</span>
+          </span>
+          <span class="inline-flex items-center space-x-1">
+            <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+            <span>Níveis 4 e 5</span>
+          </span>
         </div>
       </div>
 
@@ -66,56 +162,97 @@
       <div class="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs border-collapse">
-            <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+            <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 sticky top-0 z-10 shadow-2xs">
               <tr>
-                <th class="py-2.5 px-3 w-20">Código</th>
-                <th class="py-2.5 px-3 min-w-[200px]">Etapa do Orçamento</th>
-                <th class="py-2.5 px-3 w-28 text-center">% Material</th>
-                <th class="py-2.5 px-3 w-28 text-center">% Mão de Obra</th>
-                <th class="py-2.5 px-3 w-32 text-center">Antecedência (dias)</th>
-                <th class="py-2.5 px-3 w-36 text-center">Distribuição</th>
-                <th class="py-2.5 px-3 w-24 text-center">Nº Lotes</th>
-                <th class="py-2.5 px-3 w-40 text-center">Cond. Pgto Material</th>
+                <th class="py-2.5 px-3 w-28">Código</th>
+                <th class="py-2.5 px-3 min-w-[240px]">Etapa do Orçamento</th>
+                <th class="py-2.5 px-3 w-24 text-center">% Material</th>
+                <th class="py-2.5 px-3 w-24 text-center">% Mão de Obra</th>
+                <th class="py-2.5 px-3 w-28 text-center">Antecedência</th>
+                <th class="py-2.5 px-3 w-32 text-center">Distribuição</th>
+                <th class="py-2.5 px-3 w-20 text-center">Nº Lotes</th>
+                <th class="py-2.5 px-3 w-32 text-center">Cond. Pgto Material</th>
+                <th class="py-2.5 px-3 w-36 text-center">Origem / Status</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 bg-white">
-              <template x-for="st in editableCurvasConfigs" :key="st.code">
-                <tr class="hover:bg-slate-50/80 transition">
-                  <!-- Code -->
-                  <td class="py-2 px-3 font-mono text-[11px] font-bold text-slate-600" x-text="st.code"></td>
+              <template x-for="st in filteredCurvasConfigs" :key="st.code">
+                <tr 
+                  :class="{
+                    'bg-slate-50/70 font-semibold': st.level === 2,
+                    'bg-white': st.level > 2
+                  }"
+                  class="hover:bg-blue-50/40 transition">
                   
-                  <!-- Description -->
-                  <td class="py-2 px-3 font-semibold text-slate-800">
-                    <div class="truncate max-w-[260px]" :title="st.description" x-text="st.description"></div>
+                  <!-- Code + Level Pill -->
+                  <td class="py-2 px-3 font-mono text-[11px] whitespace-nowrap">
+                    <div class="flex items-center space-x-1.5">
+                      <span 
+                        :class="{
+                          'bg-blue-600 text-white font-bold': st.level === 2,
+                          'bg-sky-100 text-sky-800 font-bold border border-sky-300': st.level === 3,
+                          'bg-slate-100 text-slate-600 font-medium': st.level >= 4
+                        }"
+                        class="text-[9px] px-1 py-0.5 rounded leading-none shrink-0" 
+                        x-text="'N' + st.level"></span>
+                      <span class="font-bold text-slate-700" x-text="st.code"></span>
+                    </div>
+                  </td>
+                  
+                  <!-- Description (with indentation and expand/collapse) -->
+                  <td class="py-2 px-3 text-slate-800">
+                    <div 
+                      class="flex items-center space-x-1.5"
+                      :style="`padding-left: ${Math.max(0, (st.level - 2) * 16)}px`">
+                      
+                      <!-- Expand / Collapse chevron if has children -->
+                      <button 
+                        x-show="hasCurvasChildren(st.code)"
+                        @click="toggleCurvasNode(st.code)"
+                        class="w-4 h-4 flex items-center justify-center text-slate-400 hover:text-slate-800 transition shrink-0"
+                        title="Expandir / Recolher subníveis">
+                        <i 
+                          data-lucide="chevron-right" 
+                          :class="isCurvasNodeCollapsed(st.code) ? '' : 'rotate-90'"
+                          class="w-3.5 h-3.5 transition-transform duration-150"></i>
+                      </button>
+                      <span x-show="!hasCurvasChildren(st.code)" class="w-4 shrink-0"></span>
+
+                      <div 
+                        class="truncate max-w-[280px]" 
+                        :class="st.level === 2 ? 'font-bold text-slate-900' : (st.level === 3 ? 'font-semibold text-slate-800' : 'text-slate-600')"
+                        :title="st.description" 
+                        x-text="st.description"></div>
+                    </div>
                   </td>
 
                   <!-- % Material -->
                   <td class="py-2 px-3 text-center">
-                    <div class="flex items-center justify-center space-x-1">
+                    <div class="flex items-center justify-center space-x-0.5">
                       <input 
                         type="number" 
                         min="0" 
                         max="100" 
                         step="1"
                         x-model.number="st.material_pct" 
-                        @input="st.labor_pct = Math.max(0, 100 - (Number(st.material_pct) || 0))"
-                        class="w-16 text-center text-xs font-bold border border-slate-300 rounded px-1 py-1 focus:ring-1 focus:ring-blue-500 outline-none">
-                      <span class="text-slate-400 font-bold">%</span>
+                        @input="onCurvasStageEdited(st, 'material_pct')"
+                        class="w-14 text-center text-xs font-bold border border-slate-300 rounded px-1 py-1 focus:ring-1 focus:ring-blue-500 outline-none">
+                      <span class="text-slate-400 font-bold text-[10px]">%</span>
                     </div>
                   </td>
 
                   <!-- % Mão de Obra -->
                   <td class="py-2 px-3 text-center">
-                    <div class="flex items-center justify-center space-x-1">
+                    <div class="flex items-center justify-center space-x-0.5">
                       <input 
                         type="number" 
                         min="0" 
                         max="100" 
                         step="1"
                         x-model.number="st.labor_pct" 
-                        @input="st.material_pct = Math.max(0, 100 - (Number(st.labor_pct) || 0))"
-                        class="w-16 text-center text-xs font-bold border border-slate-300 rounded px-1 py-1 focus:ring-1 focus:ring-blue-500 outline-none">
-                      <span class="text-slate-400 font-bold">%</span>
+                        @input="onCurvasStageEdited(st, 'labor_pct')"
+                        class="w-14 text-center text-xs font-bold border border-slate-300 rounded px-1 py-1 focus:ring-1 focus:ring-blue-500 outline-none">
+                      <span class="text-slate-400 font-bold text-[10px]">%</span>
                     </div>
                   </td>
 
@@ -127,8 +264,9 @@
                         min="0" 
                         max="180" 
                         x-model.number="st.anticipation_days" 
-                        class="w-16 text-center text-xs font-bold border border-slate-300 rounded px-1 py-1 focus:ring-1 focus:ring-blue-500 outline-none">
-                      <span class="text-[11px] text-slate-400">dias</span>
+                        @input="onCurvasStageEdited(st, 'anticipation_days')"
+                        class="w-14 text-center text-xs font-bold border border-slate-300 rounded px-1 py-1 focus:ring-1 focus:ring-blue-500 outline-none">
+                      <span class="text-[10px] text-slate-400">d</span>
                     </div>
                   </td>
 
@@ -136,8 +274,8 @@
                   <td class="py-2 px-3 text-center">
                     <select 
                       x-model="st.distribution_type" 
-                      @change="if (st.distribution_type === 'lotes' && !st.num_batches) st.num_batches = 5;"
-                      class="text-xs font-semibold bg-white border border-slate-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 outline-none">
+                      @change="if (st.distribution_type === 'lotes' && !st.num_batches) st.num_batches = 5; onCurvasStageEdited(st, 'distribution_type');"
+                      class="text-xs font-semibold bg-white border border-slate-300 rounded px-1.5 py-1 focus:ring-1 focus:ring-blue-500 outline-none">
                       <option value="continuo">Contínuo</option>
                       <option value="lotes">Em Lotes</option>
                     </select>
@@ -152,17 +290,42 @@
                       :disabled="st.distribution_type !== 'lotes'"
                       :placeholder="st.distribution_type === 'lotes' ? '5' : '-'"
                       x-model.number="st.num_batches" 
-                      class="w-14 text-center text-xs font-bold border border-slate-300 rounded px-1 py-1 focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed">
+                      @input="onCurvasStageEdited(st, 'num_batches')"
+                      class="w-12 text-center text-xs font-bold border border-slate-300 rounded px-1 py-1 focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed">
                   </td>
 
                   <!-- Condição Pagamento Material -->
                   <td class="py-2 px-3 text-center">
                     <input 
                       type="text" 
-                      placeholder="ex: 28 ou 30/60/90"
+                      placeholder="ex: 28"
                       x-model="st.payment_terms" 
-                      class="w-32 text-center text-xs font-bold border border-slate-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 outline-none"
-                      title="Informe o número de dias (ex: 28) ou parcelas separadas por barra (ex: 30/60/90)">
+                      @input="onCurvasStageEdited(st, 'payment_terms')"
+                      class="w-24 text-center text-xs font-bold border border-slate-300 rounded px-1.5 py-1 focus:ring-1 focus:ring-blue-500 outline-none"
+                      title="Informe dias (ex: 28) ou parcelas (ex: 30/60/90)">
+                  </td>
+
+                  <!-- Status / Origem & Reset Action -->
+                  <td class="py-2 px-3 text-center whitespace-nowrap">
+                    <div class="flex items-center justify-center space-x-1.5">
+                      <span 
+                        :class="{
+                          'bg-amber-100 text-amber-800 border-amber-300': st.is_custom || st.source === 'Personalizado',
+                          'bg-slate-100 text-slate-600 border-slate-200': !st.is_custom && st.source !== 'Personalizado'
+                        }"
+                        class="text-[10px] px-2 py-0.5 rounded-full border font-medium truncate max-w-[120px]"
+                        :title="st.source || 'Padrão da Obra'"
+                        x-text="st.source || (st.is_custom ? 'Personalizado' : 'Padrão')"></span>
+                      
+                      <!-- Button to reset back to inherited -->
+                      <button 
+                        x-show="st.is_custom || (st.level > 2 && st.source === 'Personalizado')"
+                        @click="resetToInherited(st)"
+                        title="Restaurar herança do pai / padrão"
+                        class="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition">
+                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               </template>
@@ -175,8 +338,9 @@
 
     <!-- Modal Footer -->
     <div class="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
-      <div class="text-[11px] text-slate-500">
-        As configurações são salvas automaticamente na obra ativa.
+      <div class="text-[11px] text-slate-500 flex items-center space-x-2">
+        <i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-600"></i>
+        <span>As configurações são salvas diretamente no banco PostgreSQL e associadas à obra.</span>
       </div>
       <div class="flex items-center space-x-2">
         <button 

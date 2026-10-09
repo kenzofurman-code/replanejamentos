@@ -24,7 +24,7 @@ import json
 import datetime
 import calendar
 from dateutil.relativedelta import relativedelta
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Tuple, Union
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
@@ -89,43 +89,136 @@ def parse_payment_terms(terms_str: Optional[str]) -> List[Tuple[int, float]]:
         return [(28, 1.0)]
 
 
+def _eap_sort_key(code: str) -> list:
+    parts = str(code).strip().split(".")
+    res = []
+    for p in parts:
+        if p.isdigit():
+            res.append(int(p))
+        else:
+            res.append(p)
+    return res
+
+
 def get_default_stage_configs(budget_items: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
     """
-    Gera configurações padrão para todas as etapas (nível 2 da EAP) presentes no orçamento.
+    Gera configurações padrão para todos os itens da EAP do orçamento (nível >= 2),
+    ordenados hierarquicamente pela chave natural da EAP.
     """
     configs: Dict[str, Dict[str, Any]] = {}
     
-    # Localiza itens de nível 2
-    for code, item in budget_items.items():
-        if item.get("level") == 2:
-            desc = item.get("description", "")
+    # Ordena os itens da EAP
+    sorted_items = sorted(
+        budget_items.values(),
+        key=lambda it: _eap_sort_key(it.get("code", ""))
+    ) if budget_items else []
+
+    for item in sorted_items:
+        lvl = int(item.get("level") or 0)
+        if lvl >= 2:
+            code = str(item.get("code", "")).strip()
+            if not code:
+                continue
+            desc = str(item.get("description", "")).strip()
+            p_code = str(item.get("parent_code") or "").strip()
+            if not p_code and "." in code:
+                p_code = code.rsplit(".", 1)[0]
+
             configs[code] = {
                 "code": code,
                 "description": desc,
+                "level": lvl,
+                "parent_code": p_code,
                 "material_pct": 60.0,
                 "labor_pct": 40.0,
                 "anticipation_days": 15,
                 "distribution_type": "continuo",
                 "num_batches": None,
                 "payment_terms": "28",
-                "labor_payment_day": 5
+                "labor_payment_day": 5,
+                "is_custom": False,
+                "source": "Padrão da Obra",
+                "inherited_from": "padrao"
             }
-            
-    # Se não houver itens de nível 2 específicos, cria uma etapa genérica
+
+    # Se não houver itens de nível >= 2, cria uma etapa genérica
     if not configs:
         configs["padrao"] = {
             "code": "padrao",
             "description": "Padrão da Obra",
+            "level": 2,
+            "parent_code": "",
             "material_pct": 60.0,
             "labor_pct": 40.0,
             "anticipation_days": 15,
             "distribution_type": "continuo",
             "num_batches": None,
             "payment_terms": "28",
-            "labor_payment_day": 5
+            "labor_payment_day": 5,
+            "is_custom": False,
+            "source": "Padrão da Obra",
+            "inherited_from": None
         }
-        
+
     return configs
+
+
+def resolve_stage_config(
+    code: str, 
+    budget_items: Union[Dict[str, Dict[str, Any]], List[Dict[str, Any]]], 
+    effective_configs: Dict[str, Dict[str, Any]]
+) -> Dict[str, Any]:
+    """
+    Encontra a configuração efetiva para um item de qualquer nível (ex: nível 5 ou 6),
+    obedecendo a herança: item específico -> pai -> avô -> ... -> nível 2 -> padrão.
+    Suporta budget_items tanto como dict {code: item} quanto list [{code, ...}].
+    """
+    if isinstance(budget_items, list):
+        items_dict = {str(it.get("code", "")).strip(): it for it in budget_items if isinstance(it, dict)}
+    elif isinstance(budget_items, dict):
+        items_dict = budget_items
+    else:
+        items_dict = {}
+
+    curr = str(code).strip()
+    while curr:
+        cfg = effective_configs.get(curr)
+        if cfg and (cfg.get("is_custom") or cfg.get("material_pct") is not None):
+            res = dict(cfg)
+            if curr != code:
+                res["source"] = f"Herdado de {curr}"
+            return res
+        item = items_dict.get(curr)
+        if not item:
+            if "." in curr:
+                curr = curr.rsplit(".", 1)[0]
+                continue
+            break
+        curr = str(item.get("parent_code") or "").strip()
+        if not curr and "." in str(item.get("code", "")):
+            curr = item["code"].rsplit(".", 1)[0]
+
+    fallback = effective_configs.get("padrao")
+    if fallback:
+        res = dict(fallback)
+        if not res.get("source"):
+            res["source"] = "Padrão da Obra"
+        return res
+
+    return {
+        "code": "padrao",
+        "description": "Padrão da Obra",
+        "level": 2,
+        "material_pct": 60.0,
+        "labor_pct": 40.0,
+        "anticipation_days": 15,
+        "distribution_type": "continuo",
+        "num_batches": None,
+        "payment_terms": "28",
+        "labor_payment_day": 5,
+        "source": "Padrão da Obra"
+    }
+
 
 
 def _find_stage_ancestor(code: str, budget_items: Dict[str, Dict[str, Any]]) -> Optional[str]:
@@ -296,8 +389,7 @@ def compute_competence_and_cashflow(
     l5_fin_mo: Dict[str, Dict[int, float]] = {c: {cy["num"]: 0.0 for cy in extended_cycles} for c in l5_rows}
 
     for code, row in l5_rows.items():
-        st_ancestor = _find_stage_ancestor(code, budget_items)
-        cfg = effective_configs.get(st_ancestor) or effective_configs.get("padrao") or list(effective_configs.values())[0]
+        cfg = resolve_stage_config(code, budget_items, effective_configs)
         
         mat_pct = cfg["material_pct"] / 100.0
         mo_pct = cfg["labor_pct"] / 100.0
@@ -531,58 +623,142 @@ def _config_file_path(project_id: str) -> str:
 
 
 def load_curvas_config(project_id: str, budget_items: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
-    """Carrega configuração salva da obra ou gera defaults se não existir."""
-    defaults = get_default_stage_configs(budget_items)
-    path = _config_file_path(project_id)
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                saved = json.load(f)
-            # Mescla configurações salvas sobre defaults
-            if isinstance(saved, dict):
-                for k, v in saved.items():
-                    if k in defaults:
-                        defaults[k].update(v)
-                    else:
-                        defaults[k] = v
-            elif isinstance(saved, list):
-                for item in saved:
-                    code = str(item.get("code", ""))
-                    if code:
-                        if code in defaults:
-                            defaults[code].update(item)
-                        else:
-                            defaults[code] = item
-        except Exception as e:
-            print(f"Erro ao carregar curvas_config.json de {project_id}: {e}")
-    return defaults
+    """
+    Carrega configurações salvas da obra e propaga herança para toda a árvore da EAP.
+    Se um nível pai (ex: Nível 2) tiver configuração personalizada, todos os filhos
+    herdam automaticamente, a menos que um nível filho tenha sua própria configuração.
+    """
+    all_configs = get_default_stage_configs(budget_items)
+    saved = {}
+
+    # 1. Tenta carregar do banco de dados PostgreSQL primeiro
+    try:
+        from ..database import get_curvas_config_db
+        db_cfg = get_curvas_config_db(project_id)
+        if db_cfg:
+            saved = db_cfg
+    except Exception:
+        pass
+
+    # 2. Se não houver no banco, tenta carregar do arquivo curvas_config.json
+    if not saved:
+        path = _config_file_path(project_id)
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    raw = json.load(f)
+                    if isinstance(raw, dict):
+                        saved = raw
+                    elif isinstance(raw, list):
+                        saved = {str(c.get("code", "")).strip(): c for c in raw if c.get("code")}
+            except Exception as e:
+                print(f"Erro ao carregar curvas_config.json de {project_id}: {e}")
+
+    # 3. Aplica as configurações explicitamente salvas
+    for code, s_cfg in saved.items():
+        c_clean = str(code).strip()
+        if not c_clean:
+            continue
+        if c_clean in all_configs:
+            all_configs[c_clean].update(s_cfg)
+            all_configs[c_clean]["is_custom"] = bool(s_cfg.get("is_custom", True))
+            all_configs[c_clean]["source"] = "Personalizado" if all_configs[c_clean]["is_custom"] else s_cfg.get("source", "Personalizado")
+            all_configs[c_clean]["inherited_from"] = None
+        else:
+            all_configs[c_clean] = dict(s_cfg)
+            all_configs[c_clean]["is_custom"] = True
+            all_configs[c_clean]["source"] = "Personalizado"
+            all_configs[c_clean]["inherited_from"] = None
+
+    # 4. Propagação em cascata da herança para nós que não foram customizados
+    sorted_codes = sorted(
+        [k for k in all_configs if k != "padrao"],
+        key=lambda c: (all_configs[c].get("level", 2), _eap_sort_key(c))
+    )
+
+    for code in sorted_codes:
+        cfg = all_configs[code]
+        if cfg.get("is_custom"):
+            continue
+
+        p_code = cfg.get("parent_code")
+        if not p_code and "." in code:
+            p_code = code.rsplit(".", 1)[0]
+
+        ancestor_cfg = None
+        curr = p_code
+        while curr:
+            if curr in all_configs and all_configs[curr].get("is_custom"):
+                ancestor_cfg = all_configs[curr]
+                break
+            item = budget_items.get(curr)
+            if item and item.get("parent_code"):
+                curr = str(item.get("parent_code")).strip()
+            elif "." in curr:
+                curr = curr.rsplit(".", 1)[0]
+            else:
+                break
+
+        if ancestor_cfg:
+            cfg["material_pct"] = float(ancestor_cfg["material_pct"])
+            cfg["labor_pct"] = float(ancestor_cfg["labor_pct"])
+            cfg["anticipation_days"] = int(ancestor_cfg["anticipation_days"])
+            cfg["distribution_type"] = ancestor_cfg["distribution_type"]
+            cfg["num_batches"] = ancestor_cfg["num_batches"]
+            cfg["payment_terms"] = ancestor_cfg["payment_terms"]
+            cfg["labor_payment_day"] = ancestor_cfg.get("labor_payment_day", 5)
+            cfg["is_custom"] = False
+            cfg["source"] = f"Herdado de {ancestor_cfg['code']}"
+            cfg["inherited_from"] = ancestor_cfg["code"]
+        else:
+            cfg["is_custom"] = False
+            cfg["source"] = "Padrão da Obra"
+            cfg["inherited_from"] = "padrao"
+
+    return all_configs
 
 
 def save_curvas_config(project_id: str, configs: Any) -> None:
-    """Salva configurações da obra no curvas_config.json."""
-    path = _config_file_path(project_id)
-    # Se configs for lista, converte para dict por code
+    """Salva configurações da obra no curvas_config.json e no banco de dados."""
     if isinstance(configs, list):
         cfg_dict = {}
         for c in configs:
-            code = str(c.get("code", ""))
+            code = str(c.get("code", "")).strip()
             if code:
                 cfg_dict[code] = c
     else:
-        cfg_dict = configs
+        cfg_dict = dict(configs)
 
+    # 1. Salva no arquivo JSON
+    path = _config_file_path(project_id)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(cfg_dict, f, ensure_ascii=False, indent=2)
 
+    # 2. Salva no PostgreSQL
+    try:
+        from ..database import save_curvas_config_db
+        save_curvas_config_db(project_id, cfg_dict)
+    except Exception as e:
+        print(f"[DB] Notice saving curvas_config for {project_id}: {e}")
+
 
 def generate_curvas_config_excel(configs: List[Dict[str, Any]]) -> bytes:
-    """Gera uma planilha Excel para download com as etapas e colunas de configuração."""
+    """Gera uma planilha Excel para download com toda a árvore da EAP e colunas de configuração."""
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Parametros_Curvas"
 
     header_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
     header_font = Font(name="Segoe UI", size=10, bold=True, color="FFFFFF")
+    
+    fill_l2 = PatternFill(start_color="E2E8F0", end_color="E2E8F0", fill_type="solid")
+    font_l2 = Font(name="Segoe UI", size=10, bold=True, color="0F172A")
+    
+    fill_l3 = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+    font_l3 = Font(name="Segoe UI", size=9, bold=True, color="1E293B")
+    
+    font_default = Font(name="Segoe UI", size=9, color="334155")
+
     border = Border(
         left=Side(style="thin", color="CBD5E1"),
         right=Side(style="thin", color="CBD5E1"),
@@ -591,6 +767,7 @@ def generate_curvas_config_excel(configs: List[Dict[str, Any]]) -> bytes:
     )
 
     headers = [
+        "Nível",
         "Código da Etapa",
         "Descrição da Etapa",
         "Material (%)",
@@ -598,7 +775,8 @@ def generate_curvas_config_excel(configs: List[Dict[str, Any]]) -> bytes:
         "Dias Antecedência Material",
         "Distribuição Material",
         "Número de Lotes",
-        "Condição Pagamento Material"
+        "Condição Pagamento Material",
+        "Status / Origem"
     ]
 
     for col_idx, h in enumerate(headers, start=1):
@@ -608,32 +786,56 @@ def generate_curvas_config_excel(configs: List[Dict[str, Any]]) -> bytes:
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
     for row_idx, cfg in enumerate(configs, start=2):
-        ws.cell(row=row_idx, column=1, value=str(cfg.get("code", "")))
-        ws.cell(row=row_idx, column=2, value=str(cfg.get("description", "")))
-        ws.cell(row=row_idx, column=3, value=float(cfg.get("material_pct", 60.0)))
-        ws.cell(row=row_idx, column=4, value=float(cfg.get("labor_pct", 40.0)))
-        ws.cell(row=row_idx, column=5, value=int(cfg.get("anticipation_days", 15)))
-        ws.cell(row=row_idx, column=6, value=str(cfg.get("distribution_type", "continuo")))
-        ws.cell(row=row_idx, column=7, value=int(cfg["num_batches"]) if cfg.get("num_batches") else "")
-        ws.cell(row=row_idx, column=8, value=str(cfg.get("payment_terms", "28")))
+        lvl = int(cfg.get("level") or 2)
+        desc_indent = ("    " * max(0, lvl - 2)) + str(cfg.get("description", ""))
 
-        for col_idx in range(1, 9):
-            ws.cell(row=row_idx, column=col_idx).border = border
+        c_lvl = ws.cell(row=row_idx, column=1, value=lvl)
+        c_code = ws.cell(row=row_idx, column=2, value=str(cfg.get("code", "")))
+        c_desc = ws.cell(row=row_idx, column=3, value=desc_indent)
+        c_mat = ws.cell(row=row_idx, column=4, value=float(cfg.get("material_pct", 60.0)))
+        c_mo = ws.cell(row=row_idx, column=5, value=float(cfg.get("labor_pct", 40.0)))
+        c_ant = ws.cell(row=row_idx, column=6, value=int(cfg.get("anticipation_days", 15)))
+        c_dist = ws.cell(row=row_idx, column=7, value=str(cfg.get("distribution_type", "continuo")))
+        c_lot = ws.cell(row=row_idx, column=8, value=int(cfg["num_batches"]) if cfg.get("num_batches") else "")
+        c_pgt = ws.cell(row=row_idx, column=9, value=str(cfg.get("payment_terms", "28")))
+        c_src = ws.cell(row=row_idx, column=10, value=str(cfg.get("source", "Padrão da Obra")))
 
-    # Largura das colunas
-    col_widths = [16, 40, 14, 16, 26, 22, 16, 28]
+        row_fill = fill_l2 if lvl == 2 else (fill_l3 if lvl == 3 else None)
+        row_font = font_l2 if lvl == 2 else (font_l3 if lvl == 3 else font_default)
+
+        for col_idx in range(1, 11):
+            c = ws.cell(row=row_idx, column=col_idx)
+            c.border = border
+            if row_fill:
+                c.fill = row_fill
+            if row_font:
+                c.font = row_font
+
+        c_lvl.alignment = Alignment(horizontal="center", vertical="center")
+        c_code.alignment = Alignment(horizontal="left", vertical="center")
+        c_desc.alignment = Alignment(horizontal="left", vertical="center")
+        c_mat.alignment = Alignment(horizontal="right", vertical="center")
+        c_mo.alignment = Alignment(horizontal="right", vertical="center")
+        c_ant.alignment = Alignment(horizontal="center", vertical="center")
+        c_dist.alignment = Alignment(horizontal="center", vertical="center")
+        c_lot.alignment = Alignment(horizontal="center", vertical="center")
+        c_pgt.alignment = Alignment(horizontal="center", vertical="center")
+        c_src.alignment = Alignment(horizontal="left", vertical="center")
+
+    col_widths = [10, 18, 48, 14, 16, 26, 22, 16, 28, 24]
     for idx, width in enumerate(col_widths, start=1):
         col_letter = openpyxl.utils.get_column_letter(idx)
         ws.column_dimensions[col_letter].width = width
 
     ws.views.sheetView[0].showGridLines = True
+    ws.freeze_panes = "A2"
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
 
 
 def parse_curvas_config_excel(file_content: bytes) -> Dict[str, Dict[str, Any]]:
-    """Lê a planilha Excel enviada pelo usuário e extrai as configurações por etapa."""
+    """Lê a planilha Excel enviada pelo usuário e extrai as configurações de qualquer nível da EAP."""
     wb = openpyxl.load_workbook(io.BytesIO(file_content), data_only=True)
     ws = wb.active
     rows = list(ws.iter_rows(values_only=True))
@@ -641,7 +843,6 @@ def parse_curvas_config_excel(file_content: bytes) -> Dict[str, Dict[str, Any]]:
         return {}
 
     header = [str(c).strip().lower() if c is not None else "" for c in rows[0]]
-    # Encontra índices
     def _find_col(keywords: List[str]) -> Optional[int]:
         for idx, h in enumerate(header):
             if any(k in h for k in keywords):
@@ -666,7 +867,9 @@ def parse_curvas_config_excel(file_content: bytes) -> Dict[str, Dict[str, Any]]:
             continue
 
         desc = str(r[idx_desc]).strip() if idx_desc is not None and r[idx_desc] is not None else ""
-        
+        # Remove recuos visuais da descrição
+        desc = desc.strip()
+
         try:
             mat_pct = float(r[idx_mat]) if idx_mat is not None and r[idx_mat] is not None else 60.0
             if mat_pct <= 1.0 and mat_pct > 0.0:
@@ -687,23 +890,21 @@ def parse_curvas_config_excel(file_content: bytes) -> Dict[str, Dict[str, Any]]:
             ant_days = 15
 
         dist_type = "continuo"
-        if idx_dist is not None and r[idx_dist]:
-            dist_str = str(r[idx_dist]).lower().strip()
-            if "lote" in dist_str:
+        if idx_dist is not None and r[idx_dist] is not None:
+            dt_str = str(r[idx_dist]).strip().lower()
+            if "lote" in dt_str:
                 dist_type = "lotes"
 
         num_batches = None
-        if idx_lotes is not None and r[idx_lotes]:
+        if dist_type == "lotes":
             try:
-                num_batches = int(r[idx_lotes])
-                if num_batches > 1:
-                    dist_type = "lotes"
+                num_batches = int(r[idx_lotes]) if idx_lotes is not None and r[idx_lotes] is not None else 5
             except (ValueError, TypeError):
-                pass
+                num_batches = 5
 
-        pmt_terms = "28"
-        if idx_pgto is not None and r[idx_pgto]:
-            pmt_terms = str(r[idx_pgto]).strip()
+        pgto = "28"
+        if idx_pgto is not None and r[idx_pgto] is not None:
+            pgto = str(r[idx_pgto]).strip()
 
         configs[code] = {
             "code": code,
@@ -713,9 +914,12 @@ def parse_curvas_config_excel(file_content: bytes) -> Dict[str, Dict[str, Any]]:
             "anticipation_days": ant_days,
             "distribution_type": dist_type,
             "num_batches": num_batches,
-            "payment_terms": pmt_terms,
-            "labor_payment_day": 5
+            "payment_terms": pgto,
+            "labor_payment_day": 5,
+            "is_custom": True,
+            "source": "Personalizado"
         }
 
     return configs
+
 
