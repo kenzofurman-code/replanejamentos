@@ -345,18 +345,24 @@ def compute_competence_and_cashflow(
         user_cfg = (stage_configs or {}).get(st_code, {})
         effective_configs[st_code] = {
             "code": st_code,
-            "description": user_cfg.get("description") or st_cfg["description"],
+            "description": user_cfg.get("description") or st_cfg.get("description", ""),
+            "level": int(user_cfg.get("level") or st_cfg.get("level") or (len(st_code.split(".")) if st_code != "padrao" else 2)),
+            "parent_code": user_cfg.get("parent_code") or st_cfg.get("parent_code"),
             "material_pct": float(user_cfg.get("material_pct", st_cfg["material_pct"])),
             "labor_pct": float(user_cfg.get("labor_pct", st_cfg["labor_pct"])),
             "anticipation_days": int(user_cfg.get("anticipation_days", st_cfg["anticipation_days"])),
             "distribution_type": user_cfg.get("distribution_type", st_cfg["distribution_type"]),
             "num_batches": int(user_cfg["num_batches"]) if user_cfg.get("num_batches") else None,
             "payment_terms": str(user_cfg.get("payment_terms") or st_cfg["payment_terms"]).strip(),
-            "labor_payment_day": int(user_cfg.get("labor_payment_day", st_cfg["labor_payment_day"]))
+            "labor_payment_day": int(user_cfg.get("labor_payment_day", st_cfg["labor_payment_day"])),
+            "is_custom": bool(user_cfg.get("is_custom", False)),
+            "source": user_cfg.get("source") or ("Personalizado" if user_cfg.get("is_custom") else "Padrão da Obra"),
+            "inherited_from": user_cfg.get("inherited_from")
         }
         # Garantir normalização da soma de material e mão de obra
         mat_pct = effective_configs[st_code]["material_pct"]
         effective_configs[st_code]["labor_pct"] = max(0.0, 100.0 - mat_pct)
+
 
     # 2. Localizar linhas de nível 5 da tab_ff_replan_rows
     l5_rows = {r["code"]: r for r in tab_ff_replan_rows if r.get("level") == 5}

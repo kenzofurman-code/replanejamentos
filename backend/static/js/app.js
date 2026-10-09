@@ -1553,16 +1553,12 @@
           }
         },
 
-        openConfigCurvasModal() {
+        async openConfigCurvasModal() {
           this.searchCurvasConfig = "";
           this.curvasLevelFilter = 0;
           this.collapsedCurvasNodes = {};
-          if (this.replanResult?.stage_configs && this.replanResult.stage_configs.length > 0) {
-            this.editableCurvasConfigs = JSON.parse(JSON.stringify(this.replanResult.stage_configs));
-          } else {
-            this.fetchCurvasConfig();
-          }
           this.showConfigCurvasModal = true;
+          await this.fetchCurvasConfig();
           this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
         },
 
@@ -1577,8 +1573,12 @@
             );
           }
           
-          if (this.curvasLevelFilter > 0) {
-            list = list.filter(st => (st.level || 2) <= this.curvasLevelFilter);
+          const maxLevel = Number(this.curvasLevelFilter) || 0;
+          if (maxLevel > 0) {
+            list = list.filter(st => {
+              const lvl = Number(st.level) || (st.code ? st.code.split('.').length : 2);
+              return lvl <= maxLevel;
+            });
           }
           
           // Oculta nós cujos ancestrais estejam colapsados
@@ -1605,7 +1605,8 @@
         },
 
         toggleCurvasNode(code) {
-          this.collapsedCurvasNodes[code] = !this.collapsedCurvasNodes[code];
+          const current = !!this.collapsedCurvasNodes[code];
+          this.collapsedCurvasNodes = Object.assign({}, this.collapsedCurvasNodes, { [code]: !current });
           this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
         },
 
@@ -1617,13 +1618,15 @@
         collapseAllCurvasNodes() {
           const map = {};
           (this.editableCurvasConfigs || []).forEach(st => {
-            if (st.level && st.level < 5 && this.hasCurvasChildren(st.code)) {
+            const lvl = Number(st.level) || (st.code ? st.code.split('.').length : 2);
+            if (lvl < 5 && this.hasCurvasChildren(st.code)) {
               map[st.code] = true;
             }
           });
           this.collapsedCurvasNodes = map;
           this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
         },
+
 
         onCurvasStageEdited(st, field) {
           if (!st) return;
@@ -1715,7 +1718,11 @@
             const resp = await fetch(`/api/replan/${this.selectedProjectId}/curvas-config`);
             if (resp.ok) {
               const data = await resp.json();
-              this.editableCurvasConfigs = data.configs || [];
+              const configs = data.configs || [];
+              configs.forEach(st => {
+                st.level = Number(st.level) || (st.code ? st.code.split('.').length : 2);
+              });
+              this.editableCurvasConfigs = configs;
             }
           } catch (e) {
             console.error("Erro ao carregar configurações de curvas:", e);
@@ -1763,7 +1770,11 @@
               return;
             }
             const data = await resp.json();
-            this.editableCurvasConfigs = data.configs || [];
+            const configs = data.configs || [];
+            configs.forEach(st => {
+              st.level = Number(st.level) || (st.code ? st.code.split('.').length : 2);
+            });
+            this.editableCurvasConfigs = configs;
             alert(data.message || "Configurações atualizadas!");
             await this.runSimulation();
           } catch (e) {
@@ -1773,6 +1784,7 @@
             event.target.value = "";
           }
         },
+
 
 
 

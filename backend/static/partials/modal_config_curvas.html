@@ -189,12 +189,12 @@
                     <div class="flex items-center space-x-1.5">
                       <span 
                         :class="{
-                          'bg-blue-600 text-white font-bold': st.level === 2,
-                          'bg-sky-100 text-sky-800 font-bold border border-sky-300': st.level === 3,
-                          'bg-slate-100 text-slate-600 font-medium': st.level >= 4
+                          'bg-blue-600 text-white font-bold': Number(st.level || (st.code ? st.code.split('.').length : 2)) === 2,
+                          'bg-sky-100 text-sky-800 font-bold border border-sky-300': Number(st.level || (st.code ? st.code.split('.').length : 2)) === 3,
+                          'bg-slate-100 text-slate-600 font-medium': Number(st.level || (st.code ? st.code.split('.').length : 2)) >= 4
                         }"
                         class="text-[9px] px-1 py-0.5 rounded leading-none shrink-0" 
-                        x-text="'N' + st.level"></span>
+                        x-text="'N' + (st.level || (st.code ? st.code.split('.').length : 2))"></span>
                       <span class="font-bold text-slate-700" x-text="st.code"></span>
                     </div>
                   </td>
@@ -203,12 +203,13 @@
                   <td class="py-2 px-3 text-slate-800">
                     <div 
                       class="flex items-center space-x-1.5"
-                      :style="`padding-left: ${Math.max(0, (st.level - 2) * 16)}px`">
+                      :style="`padding-left: ${Math.max(0, ((Number(st.level) || (st.code ? st.code.split('.').length : 2)) - 2) * 16)}px`">
                       
                       <!-- Expand / Collapse chevron if has children -->
                       <button 
+                        type="button"
                         x-show="hasCurvasChildren(st.code)"
-                        @click="toggleCurvasNode(st.code)"
+                        @click.stop="toggleCurvasNode(st.code)"
                         class="w-4 h-4 flex items-center justify-center text-slate-400 hover:text-slate-800 transition shrink-0"
                         title="Expandir / Recolher subníveis">
                         <i 
@@ -217,6 +218,7 @@
                           class="w-3.5 h-3.5 transition-transform duration-150"></i>
                       </button>
                       <span x-show="!hasCurvasChildren(st.code)" class="w-4 shrink-0"></span>
+
 
                       <div 
                         class="truncate max-w-[280px]" 
