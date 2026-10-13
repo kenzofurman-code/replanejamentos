@@ -1033,13 +1033,60 @@ def run_replan_calculation(
                     "future_daily_sum": f_daily_sum
                 })
 
+        # Check custom replan weights for this Level 5 item
+        c_weights_entry = custom_weights.get(code) if custom_weights else None
+        c_item_weights = None
+        c_mode = "tempo"
+        c_inputs = {}
+        if isinstance(c_weights_entry, dict):
+            if "weights" in c_weights_entry:
+                c_item_weights = c_weights_entry["weights"]
+                c_mode = c_weights_entry.get("mode", "percentual")
+                c_inputs = c_weights_entry.get("inputs", {})
+            else:
+                c_item_weights = c_weights_entry
+                c_mode = "percentual"
+                c_inputs = {}
+
+        def resolve_custom_weight(vt_task):
+            if not c_item_weights:
+                return None
+            t_nm = vt_task["task_name"]
+            t_i = str(vt_task.get("task", {}).get("id") or "")
+            if t_i and t_i in c_item_weights:
+                return try_float(c_item_weights[t_i])
+            if t_nm in c_item_weights:
+                return try_float(c_item_weights[t_nm])
+            for k_w, v_w in c_item_weights.items():
+                if norm(str(k_w)) == norm(t_nm) or (t_i and str(k_w) == t_i):
+                    return try_float(v_w)
+            return None
+
         active_future = [vt for vt in valid_tasks if vt["future_daily_sum"] > 0]
         child_replan_rows = []
+        has_custom = False
 
         if active_future and saldo > 0:
-            total_fut_w = sum(vt["weight"] for vt in active_future)
+            custom_map = {}
+            if c_item_weights:
+                for vt in active_future:
+                    cw = resolve_custom_weight(vt)
+                    if cw is not None:
+                        custom_map[vt["task_name"]] = max(0.0, cw)
+                if len(custom_map) == len(active_future) and sum(custom_map.values()) > 0:
+                    has_custom = True
+
+            if has_custom:
+                total_fut_w = sum(custom_map[vt["task_name"]] for vt in active_future)
+            else:
+                total_fut_w = sum(vt["weight"] for vt in active_future)
+
             for idx, vt in enumerate(active_future):
-                w_pct = (vt["weight"] / total_fut_w) * 100.0
+                if has_custom:
+                    w_pct = (custom_map[vt["task_name"]] / total_fut_w) * 100.0 if total_fut_w > 0 else 0.0
+                else:
+                    w_pct = (vt["weight"] / total_fut_w) * 100.0 if total_fut_w > 0 else 0.0
+
                 task_saldo = saldo * (w_pct / 100.0)
                 t = vt["task"]
                 f_sum = vt["future_daily_sum"]
@@ -1047,7 +1094,7 @@ def run_replan_calculation(
                 t_rep_cycles = {cy["num"]: 0.0 for cy in cycles}
                 for cy in future_cycles:
                     c_sum = sum(v for dt, v in t["daily"].items() if cy["start"] <= dt <= cy["end"] and dt > cutoff_date)
-                    if c_sum > 0:
+                    if c_sum > 0 and f_sum > 0:
                         c_val = task_saldo * (c_sum / f_sum)
                         t_rep_cycles[cy["num"]] = c_val
                         l5_cycles[cy["num"]] += c_val
@@ -1056,19 +1103,47 @@ def run_replan_calculation(
                     "level": 6,
                     "code": f"{code}.{idx+1:03d}",
                     "parent_code": code,
+                    "parent_budget": b_val,
+                    "parent_saldo": round(saldo, 2),
                     "description": vt["task_name"],
                     "task_id": vt.get("task", {}).get("id"),
                     "task_name": vt.get("task_name") or vt.get("task", {}).get("name"),
                     "future_weight_pct": round(w_pct, 2),
                     "allocated_saldo": round(task_saldo, 2),
+                    "allocated_saldo_pct_service": round((task_saldo / b_val) * 100.0, 2) if b_val > 0 else 0.0,
+                    "allocated_saldo_pct_obra": round((task_saldo / total_proj_budget) * 100.0, 3),
                     "cycle_vals": {str(k): round(v, 2) for k, v in t_rep_cycles.items()},
-                    "total": round(sum(t_rep_cycles.values()), 2)
+                    "cycle_pcts_service": {str(k): round((v / b_val) * 100.0, 2) if b_val > 0 else 0.0 for k, v in t_rep_cycles.items()},
+                    "cycle_pcts_obra": {str(k): round((v / total_proj_budget) * 100.0, 3) for k, v in t_rep_cycles.items()},
+                    "total": round(sum(t_rep_cycles.values()), 2),
+                    "total_pct_service": round((sum(t_rep_cycles.values()) / b_val) * 100.0, 2) if b_val > 0 else 0.0,
+                    "total_pct_obra": round((sum(t_rep_cycles.values()) / total_proj_budget) * 100.0, 3),
+                    "is_custom_weight": has_custom,
+                    "replan_weight_mode": c_mode if has_custom else "tempo",
+                    "custom_input_val": c_inputs.get(vt["task_name"]) if has_custom else None
                 })
         elif valid_tasks and saldo > 0:
+            custom_map = {}
+            if c_item_weights:
+                for vt in valid_tasks:
+                    cw = resolve_custom_weight(vt)
+                    if cw is not None:
+                        custom_map[vt["task_name"]] = max(0.0, cw)
+                if len(custom_map) == len(valid_tasks) and sum(custom_map.values()) > 0:
+                    has_custom = True
+
+            if has_custom:
+                total_w = sum(custom_map[vt["task_name"]] for vt in valid_tasks)
+            else:
+                total_w = sum(vt["weight"] for vt in valid_tasks)
+
             chunk_cycles = future_cycles[:3] or future_cycles
-            total_w = sum(vt["weight"] for vt in valid_tasks)
             for idx, vt in enumerate(valid_tasks):
-                w_pct = (vt["weight"] / total_w) * 100.0
+                if has_custom:
+                    w_pct = (custom_map[vt["task_name"]] / total_w) * 100.0 if total_w > 0 else 0.0
+                else:
+                    w_pct = (vt["weight"] / total_w) * 100.0 if total_w > 0 else 0.0
+
                 task_saldo = saldo * (w_pct / 100.0)
                 t_rep_cycles = {cy["num"]: 0.0 for cy in cycles}
                 for cy in chunk_cycles:
@@ -1080,13 +1155,24 @@ def run_replan_calculation(
                     "level": 6,
                     "code": f"{code}.{idx+1:03d}",
                     "parent_code": code,
+                    "parent_budget": b_val,
+                    "parent_saldo": round(saldo, 2),
                     "description": vt["task_name"],
                     "task_id": vt.get("task", {}).get("id"),
                     "task_name": vt.get("task_name") or vt.get("task", {}).get("name"),
                     "future_weight_pct": round(w_pct, 2),
                     "allocated_saldo": round(task_saldo, 2),
+                    "allocated_saldo_pct_service": round((task_saldo / b_val) * 100.0, 2) if b_val > 0 else 0.0,
+                    "allocated_saldo_pct_obra": round((task_saldo / total_proj_budget) * 100.0, 3),
                     "cycle_vals": {str(k): round(v, 2) for k, v in t_rep_cycles.items()},
-                    "total": round(sum(t_rep_cycles.values()), 2)
+                    "cycle_pcts_service": {str(k): round((v / b_val) * 100.0, 2) if b_val > 0 else 0.0 for k, v in t_rep_cycles.items()},
+                    "cycle_pcts_obra": {str(k): round((v / total_proj_budget) * 100.0, 3) for k, v in t_rep_cycles.items()},
+                    "total": round(sum(t_rep_cycles.values()), 2),
+                    "total_pct_service": round((sum(t_rep_cycles.values()) / b_val) * 100.0, 2) if b_val > 0 else 0.0,
+                    "total_pct_obra": round((sum(t_rep_cycles.values()) / total_proj_budget) * 100.0, 3),
+                    "is_custom_weight": has_custom,
+                    "replan_weight_mode": c_mode if has_custom else "tempo",
+                    "custom_input_val": c_inputs.get(vt["task_name"]) if has_custom else None
                 })
         elif saldo > 0:
             if total_schedule_future_intensity > 0:
@@ -1100,6 +1186,7 @@ def run_replan_calculation(
 
         l5_replan_cycles[code] = l5_cycles
 
+        l5_tot = sum(l5_cycles.values())
         l5_rows[code] = {
             "level": 5,
             "code": code,
@@ -1110,10 +1197,19 @@ def run_replan_calculation(
             "med_pct": round(med_pct * 100, 2),
             "measured_pct": round(med_pct * 100, 2),
             "saldo": round(saldo, 2),
+            "saldo_pct": round((saldo / b_val) * 100.0, 2) if b_val > 0 else 0.0,
+            "saldo_pct_obra": round((saldo / total_proj_budget) * 100.0, 3),
             "future_weight_pct": 100.0 if child_replan_rows else 0.0,
             "allocated_saldo": round(saldo, 2),
             "cycle_vals": {str(k): round(v, 2) for k, v in l5_cycles.items()},
-            "total": round(sum(l5_cycles.values()), 2)
+            "cycle_pcts_service": {str(k): round((v / b_val) * 100.0, 2) if b_val > 0 else 0.0 for k, v in l5_cycles.items()},
+            "cycle_pcts_obra": {str(k): round((v / total_proj_budget) * 100.0, 3) for k, v in l5_cycles.items()},
+            "total": round(l5_tot, 2),
+            "total_pct_service": round((l5_tot / b_val) * 100.0, 2) if b_val > 0 else 0.0,
+            "total_pct_obra": round((l5_tot / total_proj_budget) * 100.0, 3),
+            "has_custom_replan_weights": has_custom,
+            "replan_weight_mode": c_mode if has_custom else "tempo",
+            "replan_weight_config": c_weights_entry if has_custom else None
         }
         l5_children[code] = child_replan_rows
 
@@ -1156,20 +1252,28 @@ def run_replan_calculation(
         lvl = item["level"]
         if lvl < 5:
             node = ff_rep_tree[code]
+            b_node = node["budget"]
+            tot_node = sum(node["cycle_vals"].values())
             tab_replanejado_rows.append({
                 "level": lvl,
                 "code": code,
                 "parent_code": node["parent_code"],
                 "description": node["description"],
-                "budget": round(node["budget"], 2),
+                "budget": round(b_node, 2),
                 "med_val": round(node["med_val"], 2),
-                "med_pct": round((node["med_val"] / node["budget"]) * 100, 2) if node["budget"] > 0 else 0.0,
-                "measured_pct": round((node["med_val"] / node["budget"]) * 100, 2) if node["budget"] > 0 else 0.0,
+                "med_pct": round((node["med_val"] / b_node) * 100, 2) if b_node > 0 else 0.0,
+                "measured_pct": round((node["med_val"] / b_node) * 100, 2) if b_node > 0 else 0.0,
                 "saldo": round(node["saldo"], 2),
+                "saldo_pct": round((node["saldo"] / b_node) * 100.0, 2) if b_node > 0 else 0.0,
+                "saldo_pct_obra": round((node["saldo"] / total_proj_budget) * 100.0, 3),
                 "future_weight_pct": 100.0,
                 "allocated_saldo": round(node["saldo"], 2),
                 "cycle_vals": {str(k): round(v, 2) for k, v in node["cycle_vals"].items()},
-                "total": round(sum(node["cycle_vals"].values()), 2)
+                "cycle_pcts_service": {str(k): round((v / b_node) * 100.0, 2) if b_node > 0 else 0.0 for k, v in node["cycle_vals"].items()},
+                "cycle_pcts_obra": {str(k): round((v / total_proj_budget) * 100.0, 3) for k, v in node["cycle_vals"].items()},
+                "total": round(tot_node, 2),
+                "total_pct_service": round((tot_node / b_node) * 100.0, 2) if b_node > 0 else 0.0,
+                "total_pct_obra": round((tot_node / total_proj_budget) * 100.0, 3)
             })
         elif lvl == 5:
             if code in l5_rows:

@@ -556,13 +556,18 @@ def add_sheet_ff_baseline(wb: openpyxl.Workbook, replan_result: Dict[str, Any], 
 
 
 def add_sheet_replanejado(wb: openpyxl.Workbook, replan_result: Dict[str, Any], view_mode: str = "val"):
-    title = "Replanejado Saldo (%)" if view_mode == "pct" else "Replanejado Saldo (R$)"
+    if view_mode == "pct":
+        title = "Replanejado Saldo (% Obra)"
+    elif view_mode == "pct_service":
+        title = "Replanejado Saldo (% Serv)"
+    else:
+        title = "Replanejado Saldo (R$)"
     ws = wb.create_sheet(title=title)
     cycles = replan_result.get("cycles", [])
     total_budget = replan_result.get("total_budget", 1.0) or 1.0
 
     base_headers = ["Nível", "Código", "Descrição / Atividade", "Peso Futuro (%)", "Saldo Alocado (R$)"]
-    suffix = " (%)" if view_mode == "pct" else " (R$)"
+    suffix = " (% Obra)" if view_mode == "pct" else (" (% Serv)" if view_mode == "pct_service" else " (R$)")
     cycle_headers = [c["period_label"] + suffix for c in cycles]
     total_headers = base_headers + cycle_headers + ["Total Saldo Distribuído" + suffix]
 
@@ -595,11 +600,17 @@ def add_sheet_replanejado(wb: openpyxl.Workbook, replan_result: Dict[str, Any], 
             row_tot += val_r
             if view_mode == "pct":
                 r_cells.append(val_r / total_budget)
+            elif view_mode == "pct_service":
+                base_b = r.get("parent_budget") if lvl == 6 else r.get("budget", 0.0)
+                r_cells.append((val_r / base_b) if base_b and base_b > 0 else 0.0)
             else:
                 r_cells.append(val_r)
 
         if view_mode == "pct":
             r_cells.append(row_tot / total_budget)
+        elif view_mode == "pct_service":
+            base_b = r.get("parent_budget") if lvl == 6 else r.get("budget", 0.0)
+            r_cells.append((row_tot / base_b) if base_b and base_b > 0 else 0.0)
         else:
             r_cells.append(row_tot)
 
@@ -612,11 +623,11 @@ def add_sheet_replanejado(wb: openpyxl.Workbook, replan_result: Dict[str, Any], 
 
         for c_offset, c in enumerate(cycles):
             c_cell = cur_row[5 + c_offset]
-            c_cell.number_format = '0.00%' if view_mode == "pct" else 'R$ #,##0.00'
+            c_cell.number_format = '0.00%' if view_mode in ("pct", "pct_service") else 'R$ #,##0.00'
             if c.get("is_past"):
                 c_cell.fill = past_fill
 
-        cur_row[-1].number_format = '0.00%' if view_mode == "pct" else 'R$ #,##0.00'
+        cur_row[-1].number_format = '0.00%' if view_mode in ("pct", "pct_service") else 'R$ #,##0.00'
         cur_row[-1].fill = total_fill
 
         if lvl == 5:
@@ -841,7 +852,12 @@ def export_replan_to_excel(
             filename = f"{proj_name}_FF_Previsto_{mode_tag}_M{cutoff_med}.xlsx"
         elif active_tab == "replanejado":
             add_sheet_replanejado(wb, replan_result, view_mode=ff_rep_view_mode)
-            mode_tag = "Percentual" if ff_rep_view_mode == "pct" else "Valor_R$"
+            if ff_rep_view_mode == "pct":
+                mode_tag = "Percentual_Obra"
+            elif ff_rep_view_mode == "pct_service":
+                mode_tag = "Percentual_Servico"
+            else:
+                mode_tag = "Valor_R$"
             filename = f"{proj_name}_Replanejado_Saldo_{mode_tag}_M{cutoff_med}.xlsx"
         elif active_tab == "medicao":
             add_sheet_medicao(wb, replan_result)

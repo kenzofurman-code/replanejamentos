@@ -79,7 +79,8 @@
         levelFilterFin: 3,      // 2, 3, 4, 0
 
         ffViewMode: "pct",      // 'pct' | 'val'
-        ffRepViewMode: "pct",   // 'pct' | 'val'
+        ffRepViewMode: "pct",   // 'pct' (% Obra) | 'pct_service' (% Serviço) | 'val' (R$)
+        replanSaldoInPct: false, // Checkbox: false (R$) | true (%)
         distViewMode: "pct",    // 'pct' (% Obra) | 'pct_service' (% Serviço) | 'val' (R$)
         compViewMode: "val",    // 'val' | 'mat' | 'mo' | 'pct'
         finViewMode: "val",     // 'val' | 'mat' | 'mo' | 'pct'
@@ -91,6 +92,14 @@
         curvasLevelFilter: 0,
         collapsedCurvasNodes: {},
         comparisonChartInstance: null,
+
+        // Modal Redistribuição de Saldo (Nível 5)
+        showReplanWeightModal: false,
+        modalReplanRow: null,
+        modalReplanTasks: [],
+        modalReplanCriteria: 'percentual', // 'tempo' | 'quantidade' | 'area' | 'percentual'
+        customReplanWeights: {},
+        isSavingReplanWeights: false,
 
         // Pagination
         distPage: 1,
@@ -260,15 +269,18 @@
           const med = this.versions.medicao?.edits || {};
           const crono = this.versions.cronograma?.edits || {};
           const dist = this.versions.distribuicao?.edits || {};
+          const replan = this.versions.replanejado?.edits || {};
           this.selectedVersionId = this.versions.cronograma?.active || null;
           this.customMonthlyL5 = JSON.parse(JSON.stringify(med.monthly_l5 || {}));
           this.customMonthlyL6 = JSON.parse(JSON.stringify(med.monthly_l6 || {}));
           this.customScheduleOverrides = JSON.parse(JSON.stringify(crono.schedule_overrides || {}));
           this.customLinksByL5 = JSON.parse(JSON.stringify(dist.links_by_l5 || {}));
+          this.customReplanWeights = JSON.parse(JSON.stringify(replan.replan_weights || {}));
           this.hasCustomLinksFlag = !!dist.links_by_l5;
           this.savedEditsJson = {
             medicao: JSON.stringify(this.medicaoEdits()),
-            cronograma: JSON.stringify(this.cronogramaEdits())
+            cronograma: JSON.stringify(this.cronogramaEdits()),
+            replanejado: JSON.stringify(this.replanejadoEdits())
           };
         },
 
@@ -283,10 +295,18 @@
           return Object.keys(this.customScheduleOverrides || {}).length ? { schedule_overrides: this.customScheduleOverrides } : {};
         },
 
+        replanejadoEdits() {
+          return Object.keys(this.customReplanWeights || {}).length ? { replan_weights: this.customReplanWeights } : {};
+        },
+
         async persistEdits() {
           // Grava na versão ativa só o que mudou desde o último salvamento
           if (!this.selectedProjectId) return;
-          const pending = { medicao: this.medicaoEdits(), cronograma: this.cronogramaEdits() };
+          const pending = { 
+            medicao: this.medicaoEdits(), 
+            cronograma: this.cronogramaEdits(),
+            replanejado: this.replanejadoEdits()
+          };
           for (const [domain, edits] of Object.entries(pending)) {
             const json = JSON.stringify(edits);
             if (json === this.savedEditsJson[domain]) continue;
@@ -432,7 +452,8 @@
               custom_monthly_medicao: this.customMonthlyL5,
               custom_monthly_medicao_l6: this.customMonthlyL6,
               custom_schedule_overrides: this.customScheduleOverrides,
-              custom_links_by_l5: (this.customLinksByL5 && Object.keys(this.customLinksByL5).length > 0) ? this.customLinksByL5 : null
+              custom_links_by_l5: (this.customLinksByL5 && Object.keys(this.customLinksByL5).length > 0) ? this.customLinksByL5 : null,
+              custom_weights: (this.customReplanWeights && Object.keys(this.customReplanWeights).length > 0) ? this.customReplanWeights : null
             };
 
             const resp = await fetch("/api/replan/simulate", {
@@ -1553,6 +1574,257 @@
           }
         },
 
+        getReplanSaldoValue(row) {
+          if (!row) return "-";
+          if (this.replanSaldoInPct) {
+            if (row.level === 6) {
+              if (row.allocated_saldo_pct_service !== undefined && row.allocated_saldo_pct_service !== null) {
+                return row.allocated_saldo_pct_service.toFixed(2) + '%';
+              }
+              const pBudget = row.parent_budget || 0;
+              return pBudget > 0 ? ((row.allocated_saldo / pBudget) * 100).toFixed(2) + '%' : '-';
+            }
+            if (row.saldo_pct !== undefined && row.saldo_pct !== null) {
+              return row.saldo_pct.toFixed(2) + '%';
+            }
+            return (row.budget && row.budget > 0) ? ((row.saldo / row.budget) * 100).toFixed(2) + '%' : '-';
+          }
+          return this.formatCurrency(row.level === 6 ? row.allocated_saldo : row.saldo);
+        },
+
+        getReplanCellValue(row, cycleNum) {
+          if (!row) return "-";
+          const cKey = String(cycleNum);
+          const val = row.cycle_vals?.[cKey] ?? 0;
+          if (this.ffRepViewMode === 'pct') {
+            const totProj = this.replanResult?.total_budget || 1.0;
+            return val > 0 ? ((val / totProj) * 100).toFixed(2) + '%' : '-';
+          } else if (this.ffRepViewMode === 'pct_service') {
+            const baseBudget = row.level === 6 ? (row.parent_budget || 0) : (row.budget || 0);
+            return (baseBudget > 0 && val > 0) ? ((val / baseBudget) * 100).toFixed(2) + '%' : '-';
+          } else {
+            return this.formatCurrency(val);
+          }
+        },
+
+        getReplanCellTotal(row) {
+          if (!row) return "-";
+          const totVal = row.total ?? 0;
+          if (this.ffRepViewMode === 'pct') {
+            const totProj = this.replanResult?.total_budget || 1.0;
+            return totProj > 0 ? ((totVal / totProj) * 100).toFixed(2) + '%' : '0.00%';
+          } else if (this.ffRepViewMode === 'pct_service') {
+            const baseBudget = row.level === 6 ? (row.parent_budget || 0) : (row.budget || 0);
+            return baseBudget > 0 ? ((totVal / baseBudget) * 100).toFixed(2) + '%' : '-';
+          } else {
+            return this.formatCurrency(totVal);
+          }
+        },
+
+        getReplanLevel1Saldo() {
+          const s = this.level1ReplanRow?.saldo ?? this.replanResult?.total_balance ?? 0;
+          const b = this.level1ReplanRow?.budget || this.replanResult?.total_budget || 0;
+          if (this.replanSaldoInPct) {
+            return b > 0 ? ((s / b) * 100).toFixed(2) + '%' : '0.00%';
+          }
+          return this.formatCurrency(s);
+        },
+
+        getReplanLevel1CycleValue(cycleNum) {
+          const cKey = String(cycleNum);
+          const val = this.level1ReplanRow?.cycle_vals?.[cKey] || 0;
+          if (this.ffRepViewMode === 'pct' || this.ffRepViewMode === 'pct_service') {
+            const totProj = this.replanResult?.total_budget || 1.0;
+            return val > 0 ? ((val / totProj) * 100).toFixed(2) + '%' : '-';
+          } else {
+            return this.formatCurrency(val);
+          }
+        },
+
+        getReplanLevel1Total() {
+          const totVal = this.level1ReplanRow?.total || this.replanResult?.total_budget || 0;
+          if (this.ffRepViewMode === 'pct' || this.ffRepViewMode === 'pct_service') {
+            return '100.00%';
+          } else {
+            return this.formatCurrency(totVal);
+          }
+        },
+
+        // --- Modal Redistribuição de Saldo (Nível 5 ↳ 6) ---
+        openReplanWeightModal(row) {
+          if (!row || row.level !== 5) return;
+          this.modalReplanRow = row;
+
+          const allRows = this.replanResult?.tab_replanejado || [];
+          const childRows = allRows.filter(r => r.parent_code === row.code && r.level === 6);
+          if (childRows.length === 0) {
+            alert("Este serviço não possui atividades vinculadas com saldo futuro a redistribuir.");
+            return;
+          }
+
+          const existingCfg = this.customReplanWeights[row.code] || row.replan_weight_config;
+          const initialMode = existingCfg?.mode || (row.has_custom_replan_weights ? row.replan_weight_mode : 'percentual');
+          this.modalReplanCriteria = initialMode || 'percentual';
+
+          this.modalReplanTasks = childRows.map(child => {
+            const tName = child.task_name || child.description;
+            const tId = child.task_id || "";
+            let savedWeight = null;
+            let savedQty = null;
+            let savedArea = null;
+
+            if (existingCfg) {
+              const weightsDict = existingCfg.weights || existingCfg;
+              savedWeight = weightsDict[tName] ?? weightsDict[tId] ?? null;
+              if (existingCfg.inputs) {
+                if (existingCfg.mode === 'quantidade') savedQty = existingCfg.inputs[tName] ?? existingCfg.inputs[tId] ?? null;
+                if (existingCfg.mode === 'area') savedArea = existingCfg.inputs[tName] ?? existingCfg.inputs[tId] ?? null;
+              }
+            }
+
+            const weightPct = savedWeight !== null ? Number(savedWeight) : Number(child.future_weight_pct || 0);
+            const saldoVal = Number(row.saldo || 0) * (weightPct / 100.0);
+
+            return {
+              task_id: tId,
+              task_name: tName,
+              duration: child.duration || 1,
+              input_qty: savedQty,
+              input_area: savedArea,
+              weight_pct: Number(weightPct.toFixed(2)),
+              allocated_saldo: Number(saldoVal.toFixed(2))
+            };
+          });
+
+          this.showReplanWeightModal = true;
+          this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+        },
+
+        closeReplanWeightModal() {
+          this.showReplanWeightModal = false;
+          this.modalReplanRow = null;
+          this.modalReplanTasks = [];
+        },
+
+        setReplanCriteria(mode) {
+          this.modalReplanCriteria = mode;
+          if (mode === 'tempo') {
+            const totDur = this.modalReplanTasks.reduce((acc, t) => acc + (Number(t.duration) || 0), 0);
+            const parentSaldo = Number(this.modalReplanRow?.saldo || 0);
+            this.modalReplanTasks.forEach(t => {
+              const w = totDur > 0 ? ((Number(t.duration) || 0) / totDur) * 100.0 : 0.0;
+              t.weight_pct = Number(w.toFixed(2));
+              t.allocated_saldo = Number((parentSaldo * (t.weight_pct / 100.0)).toFixed(2));
+            });
+          } else if (mode === 'quantidade' || mode === 'area') {
+            this.onReplanQtyOrAreaChange();
+          }
+          this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+        },
+
+        onReplanQtyOrAreaChange() {
+          const isQty = this.modalReplanCriteria === 'quantidade';
+          const parentSaldo = Number(this.modalReplanRow?.saldo || 0);
+          const totalMetric = this.modalReplanTasks.reduce((acc, t) => {
+            const val = Number(isQty ? t.input_qty : t.input_area) || 0;
+            return acc + val;
+          }, 0);
+
+          this.modalReplanTasks.forEach(t => {
+            const val = Number(isQty ? t.input_qty : t.input_area) || 0;
+            const w = totalMetric > 0 ? (val / totalMetric) * 100.0 : 0.0;
+            t.weight_pct = Number(w.toFixed(2));
+            t.allocated_saldo = Number((parentSaldo * (t.weight_pct / 100.0)).toFixed(2));
+          });
+        },
+
+        onReplanPercentChange(idx) {
+          const parentSaldo = Number(this.modalReplanRow?.saldo || 0);
+          const t = this.modalReplanTasks[idx];
+          if (!t) return;
+          if (t.weight_pct < 0) t.weight_pct = 0;
+          if (t.weight_pct > 100) t.weight_pct = 100;
+          t.allocated_saldo = Number((parentSaldo * (Number(t.weight_pct || 0) / 100.0)).toFixed(2));
+        },
+
+        divideReplanEqually() {
+          const n = this.modalReplanTasks.length;
+          if (n === 0) return;
+          const parentSaldo = Number(this.modalReplanRow?.saldo || 0);
+          const basePct = Number((100.0 / n).toFixed(2));
+          let sumAssigned = 0;
+          this.modalReplanTasks.forEach((t, i) => {
+            if (i === n - 1) {
+              t.weight_pct = Number((100.0 - sumAssigned).toFixed(2));
+            } else {
+              t.weight_pct = basePct;
+              sumAssigned += basePct;
+            }
+            t.allocated_saldo = Number((parentSaldo * (t.weight_pct / 100.0)).toFixed(2));
+          });
+        },
+
+        adjustReplanDifferenceOnLast() {
+          const n = this.modalReplanTasks.length;
+          if (n < 2) return;
+          const parentSaldo = Number(this.modalReplanRow?.saldo || 0);
+          const sumOthers = this.modalReplanTasks.slice(0, n - 1).reduce((acc, t) => acc + (Number(t.weight_pct) || 0), 0);
+          const last = this.modalReplanTasks[n - 1];
+          last.weight_pct = Math.max(0, Number((100.0 - sumOthers).toFixed(2)));
+          last.allocated_saldo = Number((parentSaldo * (last.weight_pct / 100.0)).toFixed(2));
+        },
+
+        getReplanModalTotalPct() {
+          return this.modalReplanTasks.reduce((acc, t) => acc + (Number(t.weight_pct) || 0), 0);
+        },
+
+        getReplanModalTotalSaldo() {
+          return this.modalReplanTasks.reduce((acc, t) => acc + (Number(t.allocated_saldo) || 0), 0);
+        },
+
+        isReplanModalValid() {
+          if (!this.modalReplanTasks || this.modalReplanTasks.length === 0) return false;
+          const tot = this.getReplanModalTotalPct();
+          return Math.abs(tot - 100.0) < 0.05;
+        },
+
+        async saveReplanWeights() {
+          if (!this.isReplanModalValid() || !this.modalReplanRow) return;
+          this.isSavingReplanWeights = true;
+          try {
+            const weights = {};
+            const inputs = {};
+            this.modalReplanTasks.forEach(t => {
+              weights[t.task_name] = t.weight_pct;
+              if (this.modalReplanCriteria === 'quantidade') inputs[t.task_name] = t.input_qty;
+              if (this.modalReplanCriteria === 'area') inputs[t.task_name] = t.input_area;
+            });
+
+            this.customReplanWeights[this.modalReplanRow.code] = {
+              mode: this.modalReplanCriteria,
+              weights: weights,
+              inputs: inputs
+            };
+
+            await this.persistEdits();
+            await this.runSimulation();
+            this.closeReplanWeightModal();
+          } catch (e) {
+            console.error("Erro ao salvar pesos do replanejamento:", e);
+            alert("Erro ao salvar redistribuição de pesos.");
+          } finally {
+            this.isSavingReplanWeights = false;
+          }
+        },
+
+        async resetReplanWeights(code) {
+          if (!confirm("Deseja restaurar a distribuição para a duração padrão do cronograma?")) return;
+          delete this.customReplanWeights[code];
+          await this.persistEdits();
+          await this.runSimulation();
+          this.closeReplanWeightModal();
+        },
+
         async openConfigCurvasModal() {
           this.searchCurvasConfig = "";
           this.curvasLevelFilter = 0;
@@ -2033,7 +2305,7 @@
             'distribuicao': 'Distribuição (' + (this.distViewMode === 'pct' ? '% Obra' : (this.distViewMode === 'pct_service' ? 'Peso Serviço' : 'R$')) + ')',
             'fisico_financeiro': 'FF Previsto (' + (this.ffViewMode === 'pct' ? '%' : 'R$') + ')',
             'medicao': 'Medição da Obra',
-            'replanejado': 'Replanejado Saldo (' + (this.ffRepViewMode === 'pct' ? '%' : 'R$') + ')',
+            'replanejado': 'Replanejado Saldo (' + (this.ffRepViewMode === 'pct' ? '% Obra' : (this.ffRepViewMode === 'pct_service' ? '% Serviço' : 'R$')) + ')',
             'ff_replanejado': 'FF Replanejado (' + (this.ffRepViewMode === 'pct' ? '%' : 'R$') + ')',
             'competencia': 'Competência Contábil (' + (this.compViewMode === 'pct' ? '%' : 'R$') + ')',
             'financeiro': 'Curva Financeira (' + (this.finViewMode === 'pct' ? '%' : 'R$') + ')'

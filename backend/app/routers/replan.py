@@ -89,7 +89,11 @@ def _resolve_versions(req: "ReplanRequest", parsed: Dict[str, Any]):
         crono_edits = vstore.get_edits(req.project_id, "cronograma")
         custom_schedule = crono_edits.get("schedule_overrides") or None
 
-    return parsed, schedule_override, version_id, custom_links, custom_schedule
+    custom_weights = req.custom_weights
+    if custom_weights is None:
+        custom_weights = vstore.get_edits(req.project_id, "replanejado").get("replan_weights")
+
+    return parsed, schedule_override, version_id, custom_links, custom_schedule, custom_weights
 
 @router.post("/simulate")
 def simulate_replan(req: ReplanRequest):
@@ -130,7 +134,7 @@ def simulate_replan(req: ReplanRequest):
                     detail="Projeto não carregado. Por favor, carregue o projeto primeiro."
                 )
 
-    parsed, schedule_override, version_id, custom_links, custom_schedule = _resolve_versions(req, parsed)
+    parsed, schedule_override, version_id, custom_links, custom_schedule, custom_weights = _resolve_versions(req, parsed)
 
     try:
         result = run_replan_calculation(
@@ -143,7 +147,7 @@ def simulate_replan(req: ReplanRequest):
             custom_measurements_l6=req.custom_measurements_l6,
             custom_monthly_medicao=req.custom_monthly_medicao,
             custom_monthly_medicao_l6=req.custom_monthly_medicao_l6,
-            custom_weights=req.custom_weights,
+            custom_weights=custom_weights,
             schedule_tasks_override=schedule_override,
             custom_schedule_overrides=custom_schedule,
             custom_links_by_l5=custom_links

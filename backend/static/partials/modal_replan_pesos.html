@@ -1,0 +1,322 @@
+<!-- MODAL: REDISTRIBUIÇÃO DO SALDO DO NÍVEL 5 (CRITÉRIOS: TEMPO, QUANTIDADE, ÁREA, PERCENTUAL) -->
+<div 
+  x-show="showReplanWeightModal" 
+  x-cloak
+  class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+  @keydown.escape.window="closeReplanWeightModal()">
+  
+  <div 
+    @click.away="closeReplanWeightModal()"
+    class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-150">
+    
+    <!-- Modal Header -->
+    <div class="p-4 sm:px-6 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
+      <div class="flex items-center space-x-3 min-w-0">
+        <div class="w-9 h-9 rounded-xl bg-indigo-100 border border-indigo-200 text-indigo-700 flex items-center justify-center shrink-0 shadow-2xs">
+          <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
+        </div>
+        <div class="min-w-0">
+          <div class="flex items-center space-x-2">
+            <h3 class="font-bold text-slate-900 text-sm sm:text-base leading-tight">Redistribuição do Saldo das Atividades</h3>
+            <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700">Nível 5 ↳ 6</span>
+          </div>
+          <p class="text-xs text-slate-600 truncate mt-0.5">
+            <span class="font-mono font-bold text-slate-800" x-text="modalReplanRow?.code"></span>
+            <span>·</span>
+            <span class="font-medium" x-text="modalReplanRow?.description"></span>
+          </p>
+        </div>
+      </div>
+
+      <button 
+        @click="closeReplanWeightModal()" 
+        class="text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 p-1.5 rounded-lg transition">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+
+    <!-- Parent Info Summary Cards (4 stats) -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-4 sm:px-6 bg-slate-100/60 border-b border-slate-200">
+      <div class="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+        <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block">Orçamento Original</span>
+        <span class="text-xs sm:text-sm font-bold text-slate-800 block mt-0.5" x-text="formatCurrency(modalReplanRow?.budget)"></span>
+      </div>
+      <div class="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+        <span class="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide block">Medição Realizada</span>
+        <div class="flex items-baseline space-x-1.5 mt-0.5">
+          <span class="text-xs sm:text-sm font-bold text-emerald-700" x-text="(modalReplanRow?.med_pct || 0).toFixed(2) + '%'"></span>
+          <span class="text-[10px] text-slate-500 truncate" x-text="formatCurrency(modalReplanRow?.med_val)"></span>
+        </div>
+      </div>
+      <div class="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+        <span class="text-[10px] font-semibold text-blue-600 uppercase tracking-wide block">Saldo em %</span>
+        <span class="text-xs sm:text-sm font-bold text-blue-700 block mt-0.5" x-text="(modalReplanRow?.saldo_pct || (modalReplanRow?.budget > 0 ? (modalReplanRow.saldo / modalReplanRow.budget) * 100 : 0)).toFixed(2) + '%'"></span>
+      </div>
+      <div class="bg-white p-2.5 rounded-xl border border-blue-200 bg-blue-50/40 shadow-2xs">
+        <span class="text-[10px] font-bold text-blue-800 uppercase tracking-wide block">Saldo em R$ a Distribuir</span>
+        <span class="text-xs sm:text-sm font-black text-blue-900 block mt-0.5" x-text="formatCurrency(modalReplanRow?.saldo)"></span>
+      </div>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="p-4 sm:px-6 overflow-y-auto flex-1 space-y-4">
+      
+      <!-- Criteria Tabs Selector -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 mb-1.5">Critério de Distribuição do Saldo:</label>
+        <div class="flex flex-wrap p-1 bg-slate-100 rounded-xl border border-slate-200 gap-1 text-xs font-semibold">
+          <button 
+            type="button"
+            @click="setReplanCriteria('tempo')" 
+            :class="modalReplanCriteria === 'tempo' ? 'bg-white text-indigo-700 shadow-xs border-slate-200 font-bold' : 'text-slate-600 hover:text-slate-900 border-transparent'"
+            class="flex-1 min-w-[120px] py-1.5 px-3 rounded-lg border text-center transition flex items-center justify-center space-x-1.5">
+            <i data-lucide="clock" class="w-3.5 h-3.5 shrink-0"></i>
+            <span>Por Tempo (Duração)</span>
+          </button>
+          
+          <button 
+            type="button"
+            @click="setReplanCriteria('quantidade')" 
+            :class="modalReplanCriteria === 'quantidade' ? 'bg-white text-indigo-700 shadow-xs border-slate-200 font-bold' : 'text-slate-600 hover:text-slate-900 border-transparent'"
+            class="flex-1 min-w-[120px] py-1.5 px-3 rounded-lg border text-center transition flex items-center justify-center space-x-1.5">
+            <i data-lucide="hash" class="w-3.5 h-3.5 shrink-0"></i>
+            <span>Por Quantidade</span>
+          </button>
+
+          <button 
+            type="button"
+            @click="setReplanCriteria('area')" 
+            :class="modalReplanCriteria === 'area' ? 'bg-white text-indigo-700 shadow-xs border-slate-200 font-bold' : 'text-slate-600 hover:text-slate-900 border-transparent'"
+            class="flex-1 min-w-[120px] py-1.5 px-3 rounded-lg border text-center transition flex items-center justify-center space-x-1.5">
+            <i data-lucide="maximize-2" class="w-3.5 h-3.5 shrink-0"></i>
+            <span>Por Área (m²)</span>
+          </button>
+
+          <button 
+            type="button"
+            @click="setReplanCriteria('percentual')" 
+            :class="modalReplanCriteria === 'percentual' ? 'bg-white text-indigo-700 shadow-xs border-slate-200 font-bold' : 'text-slate-600 hover:text-slate-900 border-transparent'"
+            class="flex-1 min-w-[120px] py-1.5 px-3 rounded-lg border text-center transition flex items-center justify-center space-x-1.5">
+            <i data-lucide="percent" class="w-3.5 h-3.5 shrink-0"></i>
+            <span>Por Percentual Direto</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Context Guidance Box & Quick Buttons -->
+      <div class="bg-indigo-50/70 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-950 flex flex-wrap items-center justify-between gap-2.5">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="info" class="w-4 h-4 text-indigo-600 shrink-0"></i>
+          <div>
+            <template x-if="modalReplanCriteria === 'tempo'">
+              <span>Distribuição automática proporcional à <strong>duração (dias)</strong> das atividades no cronograma.</span>
+            </template>
+            <template x-if="modalReplanCriteria === 'quantidade'">
+              <span>Informe a <strong>quantidade</strong> de cada atividade (ex: kg de aço, m³ de concreto). Os pesos e valores serão calculados proporcionalmente.</span>
+            </template>
+            <template x-if="modalReplanCriteria === 'area'">
+              <span>Informe a <strong>área (m²)</strong> de cada etapa/pavimento. Os pesos e valores serão calculados proporcionalmente à área informada.</span>
+            </template>
+            <template x-if="modalReplanCriteria === 'percentual'">
+              <span>Preencha diretamente o <strong>% do Saldo</strong> de cada atividade. A soma de todas as atividades deve totalizar <strong>100,00%</strong>.</span>
+            </template>
+          </div>
+        </div>
+
+        <!-- Quick actions for Percentual mode -->
+        <template x-if="modalReplanCriteria === 'percentual'">
+          <div class="flex items-center space-x-1.5">
+            <button 
+              type="button"
+              @click="divideReplanEqually()" 
+              class="px-2.5 py-1 rounded bg-white hover:bg-indigo-100 text-indigo-800 border border-indigo-300 font-semibold text-[11px] transition shadow-2xs">
+              Dividir Igualmente
+            </button>
+            <button 
+              type="button"
+              @click="adjustReplanDifferenceOnLast()" 
+              class="px-2.5 py-1 rounded bg-white hover:bg-indigo-100 text-indigo-800 border border-indigo-300 font-semibold text-[11px] transition shadow-2xs">
+              Ajustar na Última
+            </button>
+          </div>
+        </template>
+      </div>
+
+      <!-- Child Tasks Table -->
+      <div class="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead class="bg-slate-900 text-white font-semibold">
+            <tr>
+              <th class="py-2 px-3">Atividade Filha (Nível 6)</th>
+              
+              <!-- Conditional Input Header -->
+              <template x-if="modalReplanCriteria === 'tempo'">
+                <th class="py-2 px-3 text-center w-28">Duração (dias)</th>
+              </template>
+              <template x-if="modalReplanCriteria === 'quantidade'">
+                <th class="py-2 px-3 text-right w-36">Quantidade</th>
+              </template>
+              <template x-if="modalReplanCriteria === 'area'">
+                <th class="py-2 px-3 text-right w-36">Área (m²)</th>
+              </template>
+              <template x-if="modalReplanCriteria === 'percentual'">
+                <th class="py-2 px-3 text-right w-36">Peso no Saldo (%)</th>
+              </template>
+
+              <th class="py-2 px-3 text-right w-28">Peso Saldo (%)</th>
+              <th class="py-2 px-3 text-right w-36">Saldo Alocado (R$)</th>
+              <th class="py-2 px-3 text-right w-28 text-slate-300">% do Serviço</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 bg-white">
+            <template x-for="(task, idx) in modalReplanTasks" :key="task.task_id || task.task_name">
+              <tr class="hover:bg-slate-50 transition-colors">
+                
+                <!-- Description -->
+                <td class="py-2 px-3">
+                  <div class="flex items-center space-x-1.5">
+                    <span class="text-indigo-500 font-bold shrink-0">↳</span>
+                    <span class="font-medium text-slate-900 truncate" x-text="task.task_name"></span>
+                  </div>
+                </td>
+
+                <!-- Conditional Input Column -->
+                <!-- Mode: Tempo -->
+                <template x-if="modalReplanCriteria === 'tempo'">
+                  <td class="py-2 px-3 text-center font-mono font-semibold text-slate-700 bg-slate-50/60" x-text="task.duration + ' dias'"></td>
+                </template>
+
+                <!-- Mode: Quantidade -->
+                <template x-if="modalReplanCriteria === 'quantidade'">
+                  <td class="py-1.5 px-3 text-right">
+                    <input 
+                      type="number" 
+                      min="0" 
+                      step="any"
+                      x-model.number="task.input_qty" 
+                      @input="onReplanQtyOrAreaChange()"
+                      placeholder="0.00"
+                      class="w-full text-right bg-white border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-mono font-bold text-slate-800 outline-none">
+                  </td>
+                </template>
+
+                <!-- Mode: Área -->
+                <template x-if="modalReplanCriteria === 'area'">
+                  <td class="py-1.5 px-3 text-right">
+                    <input 
+                      type="number" 
+                      min="0" 
+                      step="any"
+                      x-model.number="task.input_area" 
+                      @input="onReplanQtyOrAreaChange()"
+                      placeholder="0.00 m²"
+                      class="w-full text-right bg-white border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-mono font-bold text-slate-800 outline-none">
+                  </td>
+                </template>
+
+                <!-- Mode: Percentual -->
+                <template x-if="modalReplanCriteria === 'percentual'">
+                  <td class="py-1.5 px-3 text-right">
+                    <div class="relative flex items-center">
+                      <input 
+                        type="number" 
+                        min="0" 
+                        max="100" 
+                        step="0.01"
+                        x-model.number="task.weight_pct" 
+                        @input="onReplanPercentChange(idx)"
+                        placeholder="0.00"
+                        class="w-full text-right pr-6 bg-white border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-mono font-bold text-indigo-700 outline-none">
+                      <span class="absolute right-2 text-slate-400 text-xs font-bold pointer-events-none">%</span>
+                    </div>
+                  </td>
+                </template>
+
+                <!-- Resulting Weight % of Saldo -->
+                <td class="py-2 px-3 text-right font-mono font-bold text-indigo-700" x-text="task.weight_pct ? task.weight_pct.toFixed(2) + '%' : '0.00%'"></td>
+
+                <!-- Allocated Saldo (R$) -->
+                <td class="py-2 px-3 text-right font-mono font-bold text-slate-900" x-text="formatCurrency(task.allocated_saldo)"></td>
+
+                <!-- % of Service (Parent Budget) -->
+                <td class="py-2 px-3 text-right font-mono text-slate-500 text-[11px]" x-text="modalReplanRow?.budget > 0 ? ((task.allocated_saldo / modalReplanRow.budget) * 100).toFixed(2) + '%' : '-'"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+    <!-- Modal Footer with Validation & Action Buttons -->
+    <div class="p-4 sm:px-6 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Totalizers & Status Badge -->
+      <div class="flex items-center space-x-3">
+        <div>
+          <span class="text-[10px] font-semibold text-slate-500 uppercase block">Total Distribuído:</span>
+          <div class="flex items-baseline space-x-2">
+            <span class="text-sm font-black font-mono text-slate-900" x-text="getReplanModalTotalPct().toFixed(2) + '%'"></span>
+            <span class="text-xs font-bold text-slate-600" x-text="formatCurrency(getReplanModalTotalSaldo())"></span>
+          </div>
+        </div>
+
+        <!-- Validation Badge -->
+        <div>
+          <template x-if="isReplanModalValid()">
+            <span class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+              <i data-lucide="check" class="w-3.5 h-3.5"></i>
+              <span>100,00% do saldo fechado</span>
+            </span>
+          </template>
+
+          <template x-if="!isReplanModalValid() && getReplanModalTotalPct() < 99.99">
+            <span class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+              <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+              <span>Falta distribuir <strong x-text="(100 - getReplanModalTotalPct()).toFixed(2) + '%'"></strong></span>
+            </span>
+          </template>
+
+          <template x-if="!isReplanModalValid() && getReplanModalTotalPct() > 100.01">
+            <span class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">
+              <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+              <span>Ultrapassou em <strong x-text="(getReplanModalTotalPct() - 100).toFixed(2) + '%'"></strong> (Máx: 100%)</span>
+            </span>
+          </template>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center space-x-2">
+        <!-- Reset to default duration button -->
+        <template x-if="modalReplanRow?.has_custom_replan_weights">
+          <button 
+            type="button"
+            @click="resetReplanWeights(modalReplanRow.code)" 
+            class="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold transition shadow-2xs">
+            Restaurar Duração Padrão
+          </button>
+        </template>
+
+        <button 
+          type="button"
+          @click="closeReplanWeightModal()" 
+          class="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold transition shadow-2xs">
+          Cancelar
+        </button>
+
+        <button 
+          type="button"
+          @click="saveReplanWeights()" 
+          :disabled="!isReplanModalValid() || isSavingReplanWeights"
+          :class="isReplanModalValid() && !isSavingReplanWeights ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs' : 'bg-slate-300 text-slate-500 cursor-not-allowed'"
+          class="px-4 py-1.5 rounded-lg font-bold text-xs transition flex items-center space-x-1.5">
+          <i data-lucide="check" class="w-3.5 h-3.5"></i>
+          <span x-text="isSavingReplanWeights ? 'Salvando...' : 'Salvar Redistribuição'"></span>
+        </button>
+      </div>
+
+    </div>
+
+  </div>
+</div>

@@ -22,7 +22,7 @@ from typing import Dict, Any, Optional
 
 from .split_io import _read_orcamento, _read_distribuicao, _read_medicao
 
-DOMAINS = ("orcamento", "cronograma", "distribuicao", "medicao")
+DOMAINS = ("orcamento", "cronograma", "distribuicao", "medicao", "replanejado")
 ATUAL = "atual"
 ATUAL_NAME = "Revisão Atual (Arquivo)"
 
