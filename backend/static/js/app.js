@@ -73,6 +73,7 @@
 
         levelFilterFF: 3,       // 2, 3, 4, 0 (all)
         levelFilterMed: 0,      // 0 (all), 2, 3, 4
+        showPrevistoMedicao: false, // Checkbox na Medição: exibe coluna P (Previsto) ao lado de R (Realizado)
         levelFilterFFRep: 3,    // 2, 3, 4, 0
         levelFilterReplan: 0,   // 0 (all), 2, 3, 4, 5
         levelFilterComp: 3,     // 2, 3, 4, 0
@@ -232,6 +233,7 @@
           this.$watch('searchDist', () => { this.distPage = 1; this.$nextTick(() => lucide.createIcons()); });
           this.$watch('searchCrono', () => { this.cronoPage = 1; this.$nextTick(() => lucide.createIcons()); });
           this.$watch('distViewMode', () => { this.$nextTick(() => lucide.createIcons()); });
+          this.$watch('showPrevistoMedicao', () => { this.$nextTick(() => lucide.createIcons()); });
         },
 
         async loadProjects() {
@@ -851,14 +853,15 @@
         getRollupMonthPct(row, medNum) {
           if (row.monthly_map && row.monthly_map[String(medNum)] !== undefined) {
             const v = row.monthly_map[String(medNum)];
-            return v > 0 ? v.toFixed(2) + '%' : '-';
+            return v > 0 ? this.formatPercent(v) : '-';
           }
           const col = row.monthly_measurements?.find(m => m.med_num === medNum);
-          return col && col.realizado_pct > 0 ? col.realizado_pct.toFixed(2) + '%' : '-';
+          return col && col.realizado_pct > 0 ? this.formatPercent(col.realizado_pct) : '-';
         },
 
         onMonthInputL5(code, medNum, val) {
-          const num = Math.min(100, Math.max(0, parseFloat(val) || 0.0));
+          const cleanVal = typeof val === 'string' ? val.replace(',', '.').trim() : val;
+          const num = Math.min(100, Math.max(0, parseFloat(cleanVal) || 0.0));
           if (!this.customMonthlyL5[code]) {
             this.customMonthlyL5[code] = {};
           }
@@ -867,7 +870,8 @@
         },
 
         onMonthInputL6(parentCode, taskName, medNum, val) {
-          const num = Math.min(100, Math.max(0, parseFloat(val) || 0.0));
+          const cleanVal = typeof val === 'string' ? val.replace(',', '.').trim() : val;
+          const num = Math.min(100, Math.max(0, parseFloat(cleanVal) || 0.0));
           if (!this.customMonthlyL6[parentCode]) {
             this.customMonthlyL6[parentCode] = {};
           }
@@ -886,6 +890,162 @@
             }
             this.onMonthInputL5(parentCode, medNum, weightedSum);
           }
+        },
+
+        formatPercent(val, decimals = 2) {
+          if (val === undefined || val === null || isNaN(val)) return "-";
+          return Number(val).toLocaleString("pt-BR", {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals
+          }) + "%";
+        },
+
+        formatInputPct(val) {
+          if (val === undefined || val === null || isNaN(val) || val === 0) return "0";
+          const num = Number(val);
+          if (num === 0) return "0";
+          const rounded = Math.round(num * 100) / 100;
+          return String(rounded).replace(".", ",");
+        },
+
+        formatPrevistoPct(pct) {
+          if (pct === undefined || pct === null || isNaN(pct) || pct <= 0.001) return "-";
+          return this.formatPercent(pct);
+        },
+
+        get medCycleCols() {
+          const cycles = this.replanResult?.cycles || [];
+          if (!this.showPrevistoMedicao) {
+            return cycles.map(c => ({
+              key: `${c.num}_R`,
+              num: c.num,
+              type: 'R',
+              label: 'M' + c.num,
+              subLabel: c.period_label || c.name || ('M' + c.num),
+              isPast: c.num <= this.cutoffMedNum,
+              cycle: c
+            }));
+          }
+          const cols = [];
+          for (const c of cycles) {
+            cols.push({
+              key: `${c.num}_P`,
+              num: c.num,
+              type: 'P',
+              label: `M${c.num} P`,
+              subLabel: c.period_label || c.name || ('M' + c.num),
+              isPast: c.num <= this.cutoffMedNum,
+              cycle: c
+            });
+            cols.push({
+              key: `${c.num}_R`,
+              num: c.num,
+              type: 'R',
+              label: `M${c.num} R`,
+              subLabel: c.period_label || c.name || ('M' + c.num),
+              isPast: c.num <= this.cutoffMedNum,
+              cycle: c
+            });
+          }
+          return cols;
+        },
+
+        get replanL5Map() {
+          const map = {};
+          for (const r of (this.replanResult?.tab_replanejado || [])) {
+            if (r.level === 5 && r.code) map[r.code] = r;
+          }
+          return map;
+        },
+
+        get replanL6Map() {
+          const map = {};
+          for (const r of (this.replanResult?.tab_replanejado || [])) {
+            if (r.level === 6 && r.parent_code) {
+              if (r.task_name) map[r.parent_code + '::' + r.task_name] = r;
+              if (r.description) map[r.parent_code + '::' + r.description] = r;
+            }
+          }
+          return map;
+        },
+
+        get distL5Map() {
+          const map = {};
+          for (const r of (this.replanResult?.tab_distribuicao || [])) {
+            if (r.level === 5 && r.code) map[r.code] = r;
+          }
+          return map;
+        },
+
+        get distL6Map() {
+          const map = {};
+          for (const r of (this.replanResult?.tab_distribuicao || [])) {
+            if (r.level === 6 && r.parent_code) {
+              if (r.task_name) map[r.parent_code + '::' + r.task_name] = r;
+              if (r.description) map[r.parent_code + '::' + r.description] = r;
+            }
+          }
+          return map;
+        },
+
+        get replanFFMap() {
+          const map = {};
+          for (const r of (this.replanResult?.tab_ff_replanejado || [])) {
+            if (r.code) map[r.code] = r;
+          }
+          return map;
+        },
+
+        getMedPrevistoPct(row, cycleNum) {
+          if (!row) return 0;
+          const cKey = String(cycleNum);
+          if (row.isL6) {
+            const l6Key = row.parent_code + '::' + (row.task_name || row.description);
+            const repChild = this.replanL6Map[l6Key];
+            if (repChild) {
+              if (repChild.allocated_saldo > 0 && repChild.cycle_vals?.[cKey] > 0) {
+                return (repChild.cycle_vals[cKey] / repChild.allocated_saldo) * 100;
+              }
+              if (repChild.cycle_pcts_service?.[cKey] > 0) {
+                return repChild.cycle_pcts_service[cKey];
+              }
+            }
+            const distChild = this.distL6Map[l6Key];
+            if (distChild?.cycle_pcts?.[cKey] > 0) {
+              return distChild.cycle_pcts[cKey];
+            }
+            return 0;
+          }
+          if (row.level === 5) {
+            const repL5 = this.replanL5Map[row.code];
+            if (repL5?.cycle_pcts_service?.[cKey] > 0) {
+              return repL5.cycle_pcts_service[cKey];
+            }
+            const distL5 = this.distL5Map[row.code];
+            if (distL5?.cycle_pcts?.[cKey] > 0) {
+              return distL5.cycle_pcts[cKey];
+            }
+            return 0;
+          }
+          // Levels 1..4
+          const ffRow = this.replanFFMap[row.code];
+          if (ffRow && ffRow.budget > 0) {
+            const val = ffRow.cycle_vals?.[cKey] || 0;
+            return (val / ffRow.budget) * 100;
+          }
+          return 0;
+        },
+
+        getMedLevel1MonthDisplay(col) {
+          if (!col) return '-';
+          if (col.type === 'P') {
+            const totBudget = this.replanResult?.total_budget || 1.0;
+            const cKey = String(col.num);
+            const val = this.level1ReplanRow?.cycle_vals?.[cKey] || 0;
+            const pct = (val / totBudget) * 100;
+            return pct > 0.001 ? this.formatPercent(pct) : '-';
+          }
+          return this.level1MedRow ? this.getRollupMonthPct(this.level1MedRow, col.num) : '-';
         },
 
         hasCustomMonthly() {

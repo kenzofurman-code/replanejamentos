@@ -60,3 +60,16 @@
     .cursor-grab { cursor: grab; }
     .cursor-grabbing { cursor: grabbing; }
     .cursor-crosshair { cursor: crosshair; }
+
+    /* Hide spin arrows in number / decimal inputs */
+    input.no-spin-arrows::-webkit-outer-spin-button,
+    input.no-spin-arrows::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button,
+    input[type=number]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input.no-spin-arrows,
+    input[type=number] {
+      -moz-appearance: textfield;
+    }
