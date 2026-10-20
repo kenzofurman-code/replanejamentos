@@ -222,3 +222,29 @@ def test_custom_replan_weights_quantity_and_area():
     assert p1_a["allocated_saldo"] == 12500.0
     assert p2_a["future_weight_pct"] == 75.0
     assert p2_a["allocated_saldo"] == 37500.0
+
+
+def test_replan_request_pydantic_custom_weights():
+    from backend.app.routers.replan import ReplanRequest
+
+    # Test ReplanRequest with custom weights dictionary (mode, weights, inputs)
+    req = ReplanRequest(
+        project_id="test",
+        custom_weights={
+            "01.04.01.01.002": {
+                "mode": "percentual",
+                "weights": {
+                    "ESTRUTURA - T1 - 15º Pav": 35.0,
+                    "ESTRUTURA - T1 - 16º Pav": 35.0,
+                    "ESTRUTURA - T1 - Ático": 20.0,
+                    "ESTRUTURA - T1 - Barrilete": 5.0,
+                    "ESTRUTURA - T1 - Cobertura": 5.0
+                },
+                "inputs": {}
+            }
+        }
+    )
+    assert req.custom_weights is not None
+    assert "01.04.01.01.002" in req.custom_weights
+    assert req.custom_weights["01.04.01.01.002"]["weights"]["ESTRUTURA - T1 - 15º Pav"] == 35.0
+

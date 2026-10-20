@@ -61,3 +61,16 @@ planilha original (usa o cache já extraído, sem abrir o arquivo de 60 MB).
 - Mudanças cirúrgicas: não reformatar nem refatorar código que não faz parte da tarefa.
 - Regras de negócio (ciclo de medição 21→20, níveis 1–6 da EAP, rateio por duração) ficam no `replan_engine.py`.
   Não invente regras novas sem confirmar com o usuário.
+
+
+---
+
+## Conexão com o Segundo Cérebro
+
+A inteligência de produto e decisões deste repositório estão centralizados em:
+`C:\Users\HomePC\Documents\segundocerebro\projetos\replanejamento-obra\`
+
+Regras para agentes:
+* Registre decisões relevantes de arquitetura em `insights.md`.
+* Atualize o escopo em `overview.md`.
+* Consulte o grafo estrutural em `grafo/graph.canvas`.

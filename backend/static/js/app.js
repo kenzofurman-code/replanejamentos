@@ -338,7 +338,7 @@
             });
             if (!resp.ok) {
               const err = await resp.json();
-              alert(err.detail || "Erro ao ativar versão.");
+              alert(this.formatErrorDetail(err, "Erro ao ativar versão."));
             }
           } catch (e) {
             console.error(e);
@@ -378,7 +378,7 @@
             });
             if (!resp.ok) {
               const err = await resp.json();
-              alert(err.detail || "Erro ao importar versão.");
+              alert(this.formatErrorDetail(err, "Erro ao importar versão."));
               return;
             }
             this.showVersionImportModal = false;
@@ -464,7 +464,7 @@
 
             if (!resp.ok) {
               const err = await resp.json();
-              alert(err.detail || "Erro ao simular replanejamento.");
+              alert(this.formatErrorDetail(err, "Erro ao simular replanejamento."));
               return;
             }
 
@@ -2203,7 +2203,7 @@
 
             if (!resp.ok) {
               const err = await resp.json();
-              alert(err.detail || "Erro ao importar cronograma.");
+              alert(this.formatErrorDetail(err, "Erro ao importar cronograma."));
               return;
             }
 
@@ -2282,7 +2282,7 @@
             const resp = await fetch(`/api/projects/${pid}`, { method: "DELETE" });
             if (!resp.ok) {
               const err = await resp.json();
-              alert(err.detail || "Não foi possível excluir a obra.");
+              alert(this.formatErrorDetail(err, "Não foi possível excluir a obra."));
               return;
             }
             await this.loadProjects();
@@ -2572,6 +2572,19 @@
           const parts = val.split('-');
           if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
           return val;
+        },
+
+        formatErrorDetail(err, fallback = "Ocorreu um erro.") {
+          if (!err) return fallback;
+          const detail = err.detail !== undefined ? err.detail : err;
+          if (typeof detail === "string") return detail;
+          if (Array.isArray(detail)) {
+            return detail.map(d => (d.loc ? d.loc.slice(1).join(".") + ": " : "") + (d.msg || JSON.stringify(d))).join("\n");
+          }
+          if (typeof detail === "object") {
+            try { return JSON.stringify(detail); } catch (_) {}
+          }
+          return String(detail || fallback);
         }
       };
     }

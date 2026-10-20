@@ -326,7 +326,7 @@ def run_replan_calculation(
     custom_measurements_l6: Optional[Dict[str, Dict[str, float]]] = None,
     custom_monthly_medicao: Optional[Dict[str, Dict[str, float]]] = None,
     custom_monthly_medicao_l6: Optional[Dict[str, Dict[str, Dict[str, float]]]] = None,
-    custom_weights: Optional[Dict[str, float]] = None,
+    custom_weights: Optional[Dict[str, Any]] = None,
     schedule_tasks_override: Optional[Dict[str, Any]] = None,
     custom_schedule_overrides: Optional[Dict[str, Any]] = None,
     custom_links_by_l5: Optional[Dict[str, List[Dict[str, Any]]]] = None

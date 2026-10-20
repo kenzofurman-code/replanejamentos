@@ -59,7 +59,7 @@ class ReplanRequest(BaseModel):
     custom_measurements_l6: Optional[Dict[str, Dict[str, float]]] = None
     custom_monthly_medicao: Optional[Dict[str, Dict[str, float]]] = None
     custom_monthly_medicao_l6: Optional[Dict[str, Dict[str, Dict[str, float]]]] = None
-    custom_weights: Optional[Dict[str, float]] = None
+    custom_weights: Optional[Dict[str, Any]] = None
     custom_schedule_overrides: Optional[Dict[str, Any]] = None
     custom_links_by_l5: Optional[Dict[str, List[Dict[str, Any]]]] = None
     custom_stage_configs: Optional[Dict[str, Dict[str, Any]]] = None
@@ -253,7 +253,7 @@ def export_replan(req: ReplanRequest):
         else:
             raise HTTPException(status_code=400, detail="Projeto não carregado.")
 
-    parsed, schedule_override, _, custom_links, custom_schedule = _resolve_versions(req, parsed)
+    parsed, schedule_override, _, custom_links, custom_schedule, custom_weights = _resolve_versions(req, parsed)
 
     result = run_replan_calculation(
         parsed_data=parsed,
@@ -265,7 +265,7 @@ def export_replan(req: ReplanRequest):
         custom_measurements_l6=req.custom_measurements_l6,
         custom_monthly_medicao=req.custom_monthly_medicao,
         custom_monthly_medicao_l6=req.custom_monthly_medicao_l6,
-        custom_weights=req.custom_weights,
+        custom_weights=custom_weights,
         schedule_tasks_override=schedule_override,
         custom_schedule_overrides=custom_schedule,
         custom_links_by_l5=custom_links
