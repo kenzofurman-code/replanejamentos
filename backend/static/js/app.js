@@ -1,3 +1,5 @@
+    const brlFormatter = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
     function replanApp() {
       return {
         // App state
@@ -401,14 +403,23 @@
           }
         },
 
-        // Rolagem infinita: quando o marcador no fim da tabela aparece, carrega mais uma página
+        // Rolagem infinita com throttling e escopo correto no container de rolagem
         observeMore(el, pageKey, totalFn) {
+          const scrollContainer = el.closest('.overflow-x-auto') || el.closest('.overflow-y-auto') || el.parentElement;
+          let isPaging = false;
           const io = new IntersectionObserver((entries) => {
+            if (isPaging) return;
             if (entries.some(e => e.isIntersecting) && this[pageKey] * 50 < totalFn()) {
+              isPaging = true;
               this[pageKey]++;
-              this.$nextTick(() => lucide.createIcons());
+              setTimeout(() => {
+                isPaging = false;
+                if (window.lucide && scrollContainer) {
+                  try { lucide.createIcons({ root: scrollContainer }); } catch (_) {}
+                }
+              }, 250);
             }
-          }, { rootMargin: "300px" });
+          }, { root: scrollContainer, rootMargin: "150px" });
           io.observe(el);
         },
 
@@ -437,12 +448,18 @@
 
         switchTab(tab) {
           this.activeTab = tab;
+          if (tab === 'medicao') {
+            this.buildMedicaoLookups();
+            this.updateMedCycleCols();
+          }
           this.$nextTick(() => {
-            lucide.createIcons();
             if (tab === 'dashboard') {
               this.renderCurvaS();
             } else if (tab === 'financeiro') {
               this.renderComparisonChart();
+            }
+            if (window.lucide) {
+              try { lucide.createIcons(); } catch (_) {}
             }
           });
         },
@@ -492,15 +509,26 @@
               this.hasCustomLinksFlag = !!this.replanResult.has_custom_links;
             }
 
-            this.buildMedicaoLookups();
-            this.updateMedCycleCols();
+            // Reset initial pagination so the table starts lightweight and doesn't re-render thousands of rows
+            this.replanPage = 1;
+            this.medPage = 1;
+            this.cronoPage = 1;
+            this.distPage = 1;
+
+            if (this.activeTab === 'medicao') {
+              this.buildMedicaoLookups();
+              this.updateMedCycleCols();
+            }
 
             this.$nextTick(() => {
-              this.renderCurvaS();
-              if (this.activeTab === 'financeiro') {
+              if (this.activeTab === 'dashboard') {
+                this.renderCurvaS();
+              } else if (this.activeTab === 'financeiro') {
                 this.renderComparisonChart();
               }
-              lucide.createIcons();
+              if (window.lucide) {
+                try { lucide.createIcons(); } catch (_) {}
+              }
             });
           } catch (e) {
             console.error("Erro na simulação:", e);
@@ -1278,8 +1306,8 @@
               end_date: this.drawerTask.end_date,
               predecessors: this.drawerTask.predecessors || []
             };
-            await this.runSimulation();
             this.showTaskDrawer = false;
+            await this.runSimulation();
           } catch (err) {
             console.error("Erro ao salvar tarefa:", err);
             alert("Erro ao salvar alterações da tarefa.");
@@ -1761,19 +1789,20 @@
           if (!row) return "-";
           const cKey = String(cycleNum);
           const val = row.cycle_vals?.[cKey] ?? 0;
+          if (!val || val <= 0.0001) return "-";
           if (this.ffRepViewMode === 'pct') {
             const totProj = this.replanResult?.total_budget || 1.0;
-            return val > 0 ? ((val / totProj) * 100).toFixed(2) + '%' : '-';
+            return ((val / totProj) * 100).toFixed(2) + '%';
           } else if (this.ffRepViewMode === 'pct_service') {
             const baseBudget = row.level === 6 ? (row.parent_budget || 0) : (row.budget || 0);
-            return (baseBudget > 0 && val > 0) ? ((val / baseBudget) * 100).toFixed(2) + '%' : '-';
+            return baseBudget > 0 ? ((val / baseBudget) * 100).toFixed(2) + '%' : '-';
           } else if (this.ffRepViewMode === 'pct_etapa') {
             if (row.level === 6) {
               const sal = row.allocated_saldo || 0;
-              return (sal > 0 && val > 0) ? ((val / sal) * 100).toFixed(2) + '%' : '-';
+              return sal > 0 ? ((val / sal) * 100).toFixed(2) + '%' : '-';
             } else {
               const baseBudget = row.budget || 0;
-              return (baseBudget > 0 && val > 0) ? ((val / baseBudget) * 100).toFixed(2) + '%' : '-';
+              return baseBudget > 0 ? ((val / baseBudget) * 100).toFixed(2) + '%' : '-';
             }
           } else {
             return this.formatCurrency(val);
@@ -1987,9 +2016,8 @@
               inputs: inputs
             };
 
-            await this.persistEdits();
-            await this.runSimulation();
             this.closeReplanWeightModal();
+            await this.runSimulation();
           } catch (e) {
             console.error("Erro ao salvar pesos do replanejamento:", e);
             alert("Erro ao salvar redistribuição de pesos.");
@@ -2001,9 +2029,8 @@
         async resetReplanWeights(code) {
           if (!confirm("Deseja restaurar a distribuição para a duração padrão do cronograma?")) return;
           delete this.customReplanWeights[code];
-          await this.persistEdits();
-          await this.runSimulation();
           this.closeReplanWeightModal();
+          await this.runSimulation();
         },
 
         async openConfigCurvasModal() {
@@ -2744,8 +2771,8 @@
         },
 
         formatCurrency(val) {
-          if (val === undefined || val === null || isNaN(val)) return "-";
-          return "R$ " + Number(val).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          if (val === undefined || val === null || isNaN(val) || val === 0) return val === 0 ? "R$ 0,00" : "-";
+          return "R$ " + brlFormatter.format(val);
         },
 
         formatDateBr(val) {

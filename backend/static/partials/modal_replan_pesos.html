@@ -1,6 +1,6 @@
 <!-- MODAL: REDISTRIBUIÇÃO DO SALDO DO NÍVEL 5 (CRITÉRIOS: TEMPO, QUANTIDADE, ÁREA, PERCENTUAL) -->
+<template x-if="showReplanWeightModal">
 <div 
-  x-show="showReplanWeightModal" 
   x-cloak
   class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
   @keydown.escape.window="closeReplanWeightModal()">
@@ -320,3 +320,4 @@
 
   </div>
 </div>
+</template>
