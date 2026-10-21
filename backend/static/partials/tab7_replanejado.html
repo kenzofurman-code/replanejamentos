@@ -112,6 +112,32 @@
               @input="replanPage = 1"
               placeholder="Filtrar replanejado..." 
               class="bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs w-36 outline-none">
+
+            <!-- Botões Rápidos de Carregamento & Navegação -->
+            <button 
+              x-show="paginatedReplanRows.length < filteredReplanRows.length"
+              @click="loadAllReplanRows()" 
+              class="flex items-center space-x-1 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded text-[11px] font-semibold transition shadow-2xs"
+              title="Carregar todas as linhas da tabela de uma vez">
+              <i data-lucide="chevrons-down" class="w-3.5 h-3.5"></i>
+              <span>Abrir Tudo</span>
+            </button>
+
+            <button 
+              @click="scrollToReplanBottom()" 
+              class="flex items-center space-x-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded text-[11px] font-medium transition shadow-2xs"
+              title="Carregar tudo e ir para a última linha da tabela">
+              <i data-lucide="arrow-down" class="w-3.5 h-3.5"></i>
+              <span>Fim ⤓</span>
+            </button>
+
+            <button 
+              @click="scrollToReplanTop()" 
+              class="flex items-center space-x-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded text-[11px] font-medium transition shadow-2xs"
+              title="Voltar ao topo da tabela">
+              <i data-lucide="arrow-up" class="w-3.5 h-3.5"></i>
+              <span>Topo ⤒</span>
+            </button>
           </div>
         </div>
 
@@ -127,7 +153,7 @@
           </button>
         </div>
 
-        <div class="overflow-x-auto max-h-[600px] 2xl:max-h-[750px] scrollbar-thin">
+        <div x-ref="replanContainer" class="overflow-x-auto max-h-[600px] 2xl:max-h-[750px] scrollbar-thin">
           <table class="w-full text-left table-compact border-separate border-spacing-0">
             <thead class="bg-slate-900 text-white sticky top-0 z-20">
               <!-- Row 1: Column Titles -->
@@ -231,10 +257,65 @@
           <div x-init="observeMore($el, 'replanPage', () => filteredReplanRows.length)" class="h-1"></div>
         </div>
 
-        <div class="p-2 border-t border-slate-200 text-xs text-slate-600 bg-slate-50">
-          Mostrando <span class="font-bold" x-text="Math.min(replanPage * replanPageSize, filteredReplanRows.length)"></span> de
-          <span class="font-bold" x-text="filteredReplanRows.length"></span> linhas
-          <span x-show="replanPage * replanPageSize < filteredReplanRows.length" class="text-slate-400">· role para carregar mais</span>
+        <div class="p-2 border-t border-slate-200 text-xs text-slate-600 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center space-x-3">
+            <div>
+              Mostrando <span class="font-bold text-slate-900" x-text="Math.min(replanPage * replanPageSize, filteredReplanRows.length)"></span> de
+              <span class="font-bold text-slate-900" x-text="filteredReplanRows.length"></span> linhas
+            </div>
+
+            <!-- Page Size Selector -->
+            <div class="flex items-center space-x-1 bg-slate-200/80 p-0.5 rounded text-[11px]">
+              <span class="text-slate-500 px-1 text-[10px] uppercase font-semibold">Exibir:</span>
+              <button 
+                @click="setReplanPageSize(150)" 
+                :class="replanPageSize === 150 ? 'bg-white font-bold text-indigo-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'"
+                class="px-1.5 py-0.5 rounded transition">150</button>
+              <button 
+                @click="setReplanPageSize(300)" 
+                :class="replanPageSize === 300 ? 'bg-white font-bold text-indigo-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'"
+                class="px-1.5 py-0.5 rounded transition">300</button>
+              <button 
+                @click="setReplanPageSize(600)" 
+                :class="replanPageSize === 600 ? 'bg-white font-bold text-indigo-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'"
+                class="px-1.5 py-0.5 rounded transition">600</button>
+              <button 
+                @click="setReplanPageSize('all')" 
+                :class="replanPageSize >= filteredReplanRows.length ? 'bg-white font-bold text-indigo-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'"
+                class="px-1.5 py-0.5 rounded transition">Todas (<span x-text="filteredReplanRows.length"></span>)</button>
+            </div>
+          </div>
+
+          <div class="flex items-center space-x-2">
+            <button 
+              x-show="replanPage * replanPageSize < filteredReplanRows.length" 
+              @click="loadMoreReplanRows()"
+              class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded font-medium shadow-2xs transition flex items-center space-x-1">
+              <span>+ Carregar mais <span x-text="Math.min(replanPageSize, filteredReplanRows.length - replanPage * replanPageSize)"></span> linhas</span>
+            </button>
+
+            <button 
+              x-show="replanPage * replanPageSize < filteredReplanRows.length" 
+              @click="loadAllReplanRows()"
+              class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-2xs transition flex items-center space-x-1">
+              <i data-lucide="chevrons-down" class="w-3.5 h-3.5"></i>
+              <span>Carregar Todas</span>
+            </button>
+
+            <button 
+              @click="scrollToReplanBottom()"
+              class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded font-medium shadow-2xs transition flex items-center space-x-1"
+              title="Carrega todas as linhas e vai até o final">
+              <span>Última Linha ⤓</span>
+            </button>
+
+            <button 
+              @click="scrollToReplanTop()"
+              class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded font-medium shadow-2xs transition flex items-center space-x-1"
+              title="Voltar ao topo">
+              <span>Topo ⤒</span>
+            </button>
+          </div>
         </div>
       </div>
     </template>

@@ -110,13 +110,13 @@
 
         // Pagination
         distPage: 1,
-        distPageSize: 50,   // rolagem infinita: carrega +50 linhas ao chegar no fim
+        distPageSize: 100,   // rolagem infinita: carrega +100 linhas ao chegar no fim
         cronoPage: 1,
-        cronoPageSize: 50,
+        cronoPageSize: 100,
         replanPage: 1,
-        replanPageSize: 50,
+        replanPageSize: 150,
         medPage: 1,
-        medPageSize: 50,
+        medPageSize: 100,
 
         // Curve Visibility
         curveVisibility: {
@@ -409,7 +409,8 @@
           let isPaging = false;
           const io = new IntersectionObserver((entries) => {
             if (isPaging) return;
-            if (entries.some(e => e.isIntersecting) && this[pageKey] * 50 < totalFn()) {
+            const pageSize = this[pageKey + 'Size'] || 100;
+            if (entries.some(e => e.isIntersecting) && this[pageKey] * pageSize < totalFn()) {
               isPaging = true;
               this[pageKey]++;
               setTimeout(() => {
@@ -417,9 +418,9 @@
                 if (window.lucide && scrollContainer) {
                   try { lucide.createIcons({ root: scrollContainer }); } catch (_) {}
                 }
-              }, 250);
+              }, 150);
             }
-          }, { root: scrollContainer, rootMargin: "150px" });
+          }, { root: scrollContainer, rootMargin: "300px" });
           io.observe(el);
         },
 
@@ -2392,6 +2393,124 @@
         get paginatedReplanRows() {
           const filtered = this.filteredReplanRows;
           return filtered.slice(0, this.replanPage * this.replanPageSize);
+        },
+
+        setReplanPageSize(size) {
+          if (size === 'all') {
+            this.replanPage = 1;
+            this.replanPageSize = Math.max(this.filteredReplanRows.length, 1000);
+          } else {
+            const curLoaded = this.replanPage * this.replanPageSize;
+            this.replanPageSize = Number(size);
+            this.replanPage = Math.max(1, Math.ceil(curLoaded / this.replanPageSize));
+          }
+          this.$nextTick(() => {
+            if (window.lucide && this.$refs.replanContainer) {
+              try { lucide.createIcons({ root: this.$refs.replanContainer }); } catch (_) {}
+            }
+          });
+        },
+
+        loadMoreReplanRows(qty = 1) {
+          this.replanPage += qty;
+          this.$nextTick(() => {
+            if (window.lucide && this.$refs.replanContainer) {
+              try { lucide.createIcons({ root: this.$refs.replanContainer }); } catch (_) {}
+            }
+          });
+        },
+
+        loadAllReplanRows() {
+          if (this.replanPageSize < this.filteredReplanRows.length) {
+            this.replanPageSize = Math.max(this.filteredReplanRows.length, 1000);
+          }
+          this.replanPage = 1;
+          this.$nextTick(() => {
+            if (window.lucide && this.$refs.replanContainer) {
+              try { lucide.createIcons({ root: this.$refs.replanContainer }); } catch (_) {}
+            }
+          });
+        },
+
+        scrollToReplanBottom() {
+          this.loadAllReplanRows();
+          this.$nextTick(() => {
+            const container = this.$refs.replanContainer;
+            if (container) {
+              container.scrollTop = container.scrollHeight;
+              setTimeout(() => {
+                if (container) {
+                  container.scrollTop = container.scrollHeight;
+                }
+              }, 120);
+            }
+          });
+        },
+
+        scrollToReplanTop() {
+          const container = this.$refs.replanContainer;
+          if (container) {
+            container.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        },
+
+        setMedPageSize(size) {
+          if (size === 'all') {
+            this.medPage = 1;
+            this.medPageSize = Math.max(this.displayMedRows.length, 500);
+          } else {
+            const curLoaded = this.medPage * this.medPageSize;
+            this.medPageSize = Number(size);
+            this.medPage = Math.max(1, Math.ceil(curLoaded / this.medPageSize));
+          }
+          this.$nextTick(() => {
+            if (window.lucide && this.$refs.medContainer) {
+              try { lucide.createIcons({ root: this.$refs.medContainer }); } catch (_) {}
+            }
+          });
+        },
+
+        loadMoreMedRows(qty = 1) {
+          this.medPage += qty;
+          this.$nextTick(() => {
+            if (window.lucide && this.$refs.medContainer) {
+              try { lucide.createIcons({ root: this.$refs.medContainer }); } catch (_) {}
+            }
+          });
+        },
+
+        loadAllMedRows() {
+          if (this.medPageSize < this.displayMedRows.length) {
+            this.medPageSize = Math.max(this.displayMedRows.length, 500);
+          }
+          this.medPage = 1;
+          this.$nextTick(() => {
+            if (window.lucide && this.$refs.medContainer) {
+              try { lucide.createIcons({ root: this.$refs.medContainer }); } catch (_) {}
+            }
+          });
+        },
+
+        scrollToMedBottom() {
+          this.loadAllMedRows();
+          this.$nextTick(() => {
+            const container = this.$refs.medContainer;
+            if (container) {
+              container.scrollTop = container.scrollHeight;
+              setTimeout(() => {
+                if (container) {
+                  container.scrollTop = container.scrollHeight;
+                }
+              }, 120);
+            }
+          });
+        },
+
+        scrollToMedTop() {
+          const container = this.$refs.medContainer;
+          if (container) {
+            container.scrollTo({ top: 0, behavior: 'smooth' });
+          }
         },
 
         // --- Upload Schedule ---

@@ -85,7 +85,7 @@
           </button>
         </div>
 
-        <div class="overflow-x-auto max-h-[600px] 2xl:max-h-[750px] scrollbar-thin">
+        <div x-ref="medContainer" class="overflow-x-auto max-h-[600px] 2xl:max-h-[750px] scrollbar-thin">
           <table class="w-full text-left table-compact border-separate border-spacing-0">
             <thead class="bg-slate-900 text-white sticky top-0 z-20">
               <!-- Row 1: Column Titles -->
@@ -243,10 +243,61 @@
           <div x-init="observeMore($el, 'medPage', () => displayMedRows.length)" class="h-1"></div>
         </div>
 
-        <div class="p-2 border-t border-slate-200 text-xs text-slate-600 bg-slate-50">
-          Mostrando <span class="font-bold" x-text="Math.min(medPage * medPageSize, displayMedRows.length)"></span> de
-          <span class="font-bold" x-text="displayMedRows.length"></span> linhas
-          <span x-show="medPage * medPageSize < displayMedRows.length" class="text-slate-400">· role para carregar mais</span>
+        <div class="p-2 border-t border-slate-200 text-xs text-slate-600 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center space-x-3">
+            <div>
+              Mostrando <span class="font-bold text-slate-900" x-text="Math.min(medPage * medPageSize, displayMedRows.length)"></span> de
+              <span class="font-bold text-slate-900" x-text="displayMedRows.length"></span> linhas
+            </div>
+
+            <!-- Page Size Selector -->
+            <div class="flex items-center space-x-1 bg-slate-200/80 p-0.5 rounded text-[11px]">
+              <span class="text-slate-500 px-1 text-[10px] uppercase font-semibold">Exibir:</span>
+              <button 
+                @click="setMedPageSize(100)" 
+                :class="medPageSize === 100 ? 'bg-white font-bold text-indigo-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'"
+                class="px-1.5 py-0.5 rounded transition">100</button>
+              <button 
+                @click="setMedPageSize(250)" 
+                :class="medPageSize === 250 ? 'bg-white font-bold text-indigo-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'"
+                class="px-1.5 py-0.5 rounded transition">250</button>
+              <button 
+                @click="setMedPageSize('all')" 
+                :class="medPageSize >= displayMedRows.length ? 'bg-white font-bold text-indigo-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'"
+                class="px-1.5 py-0.5 rounded transition">Todas (<span x-text="displayMedRows.length"></span>)</button>
+            </div>
+          </div>
+
+          <div class="flex items-center space-x-2">
+            <button 
+              x-show="medPage * medPageSize < displayMedRows.length" 
+              @click="loadMoreMedRows()"
+              class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded font-medium shadow-2xs transition flex items-center space-x-1">
+              <span>+ Carregar mais <span x-text="Math.min(medPageSize, displayMedRows.length - medPage * medPageSize)"></span> linhas</span>
+            </button>
+
+            <button 
+              x-show="medPage * medPageSize < displayMedRows.length" 
+              @click="loadAllMedRows()"
+              class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-2xs transition flex items-center space-x-1">
+              <i data-lucide="chevrons-down" class="w-3.5 h-3.5"></i>
+              <span>Carregar Todas</span>
+            </button>
+
+            <button 
+              @click="scrollToMedBottom()"
+              class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded font-medium shadow-2xs transition flex items-center space-x-1"
+              title="Carrega todas as linhas e vai até o final">
+              <span>Última Linha ⤓</span>
+            </button>
+
+            <button 
+              @click="scrollToMedTop()"
+              class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded font-medium shadow-2xs transition flex items-center space-x-1"
+              title="Voltar ao topo">
+              <span>Topo ⤒</span>
+            </button>
+          </div>
         </div>
       </div>
     </template>
