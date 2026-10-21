@@ -560,6 +560,8 @@ def add_sheet_replanejado(wb: openpyxl.Workbook, replan_result: Dict[str, Any], 
         title = "Replanejado Saldo (% Obra)"
     elif view_mode == "pct_service":
         title = "Replanejado Saldo (% Serv)"
+    elif view_mode == "pct_etapa":
+        title = "Replanejado Saldo (% Etapa)"
     else:
         title = "Replanejado Saldo (R$)"
     ws = wb.create_sheet(title=title)
@@ -567,7 +569,7 @@ def add_sheet_replanejado(wb: openpyxl.Workbook, replan_result: Dict[str, Any], 
     total_budget = replan_result.get("total_budget", 1.0) or 1.0
 
     base_headers = ["Nível", "Código", "Descrição / Atividade", "Peso Futuro (%)", "Saldo Alocado (R$)"]
-    suffix = " (% Obra)" if view_mode == "pct" else (" (% Serv)" if view_mode == "pct_service" else " (R$)")
+    suffix = " (% Obra)" if view_mode == "pct" else (" (% Serv)" if view_mode == "pct_service" else (" (% Etapa)" if view_mode == "pct_etapa" else " (R$)"))
     cycle_headers = [c["period_label"] + suffix for c in cycles]
     total_headers = base_headers + cycle_headers + ["Total Saldo Distribuído" + suffix]
 
@@ -603,6 +605,13 @@ def add_sheet_replanejado(wb: openpyxl.Workbook, replan_result: Dict[str, Any], 
             elif view_mode == "pct_service":
                 base_b = r.get("parent_budget") if lvl == 6 else r.get("budget", 0.0)
                 r_cells.append((val_r / base_b) if base_b and base_b > 0 else 0.0)
+            elif view_mode == "pct_etapa":
+                if lvl == 6:
+                    sal = r.get("allocated_saldo", 0.0)
+                    r_cells.append((val_r / sal) if sal and sal > 0 else 0.0)
+                else:
+                    base_b = r.get("budget", 0.0)
+                    r_cells.append((val_r / base_b) if base_b and base_b > 0 else 0.0)
             else:
                 r_cells.append(val_r)
 
@@ -611,6 +620,13 @@ def add_sheet_replanejado(wb: openpyxl.Workbook, replan_result: Dict[str, Any], 
         elif view_mode == "pct_service":
             base_b = r.get("parent_budget") if lvl == 6 else r.get("budget", 0.0)
             r_cells.append((row_tot / base_b) if base_b and base_b > 0 else 0.0)
+        elif view_mode == "pct_etapa":
+            if lvl == 6:
+                sal = r.get("allocated_saldo", 0.0)
+                r_cells.append((row_tot / sal) if sal and sal > 0 else (1.0 if row_tot > 0 else 0.0))
+            else:
+                base_b = r.get("budget", 0.0)
+                r_cells.append((row_tot / base_b) if base_b and base_b > 0 else 0.0)
         else:
             r_cells.append(row_tot)
 
@@ -623,11 +639,11 @@ def add_sheet_replanejado(wb: openpyxl.Workbook, replan_result: Dict[str, Any], 
 
         for c_offset, c in enumerate(cycles):
             c_cell = cur_row[5 + c_offset]
-            c_cell.number_format = '0.00%' if view_mode in ("pct", "pct_service") else 'R$ #,##0.00'
+            c_cell.number_format = '0.00%' if view_mode in ("pct", "pct_service", "pct_etapa") else 'R$ #,##0.00'
             if c.get("is_past"):
                 c_cell.fill = past_fill
 
-        cur_row[-1].number_format = '0.00%' if view_mode in ("pct", "pct_service") else 'R$ #,##0.00'
+        cur_row[-1].number_format = '0.00%' if view_mode in ("pct", "pct_service", "pct_etapa") else 'R$ #,##0.00'
         cur_row[-1].fill = total_fill
 
         if lvl == 5:
@@ -856,6 +872,8 @@ def export_replan_to_excel(
                 mode_tag = "Percentual_Obra"
             elif ff_rep_view_mode == "pct_service":
                 mode_tag = "Percentual_Servico"
+            elif ff_rep_view_mode == "pct_etapa":
+                mode_tag = "Percentual_Etapa"
             else:
                 mode_tag = "Valor_R$"
             filename = f"{proj_name}_Replanejado_Saldo_{mode_tag}_M{cutoff_med}.xlsx"

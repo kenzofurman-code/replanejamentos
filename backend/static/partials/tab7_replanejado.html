@@ -92,6 +92,13 @@
                 % do Serviço
               </button>
               <button 
+                @click="ffRepViewMode = 'pct_etapa'" 
+                :class="ffRepViewMode === 'pct_etapa' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                class="px-2.5 py-0.5 rounded transition"
+                title="Para o Nível 6, mostra a evolução da própria etapa de 0% a 100%">
+                % Etapa
+              </button>
+              <button 
                 @click="ffRepViewMode = 'val'" 
                 :class="ffRepViewMode === 'val' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
                 class="px-2.5 py-0.5 rounded transition">

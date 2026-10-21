@@ -1767,6 +1767,14 @@
           } else if (this.ffRepViewMode === 'pct_service') {
             const baseBudget = row.level === 6 ? (row.parent_budget || 0) : (row.budget || 0);
             return (baseBudget > 0 && val > 0) ? ((val / baseBudget) * 100).toFixed(2) + '%' : '-';
+          } else if (this.ffRepViewMode === 'pct_etapa') {
+            if (row.level === 6) {
+              const sal = row.allocated_saldo || 0;
+              return (sal > 0 && val > 0) ? ((val / sal) * 100).toFixed(2) + '%' : '-';
+            } else {
+              const baseBudget = row.budget || 0;
+              return (baseBudget > 0 && val > 0) ? ((val / baseBudget) * 100).toFixed(2) + '%' : '-';
+            }
           } else {
             return this.formatCurrency(val);
           }
@@ -1781,6 +1789,14 @@
           } else if (this.ffRepViewMode === 'pct_service') {
             const baseBudget = row.level === 6 ? (row.parent_budget || 0) : (row.budget || 0);
             return baseBudget > 0 ? ((totVal / baseBudget) * 100).toFixed(2) + '%' : '-';
+          } else if (this.ffRepViewMode === 'pct_etapa') {
+            if (row.level === 6) {
+              const sal = row.allocated_saldo || 0;
+              return sal > 0 ? ((totVal / sal) * 100).toFixed(2) + '%' : (totVal > 0 ? '100.00%' : '-');
+            } else {
+              const baseBudget = row.budget || 0;
+              return baseBudget > 0 ? ((totVal / baseBudget) * 100).toFixed(2) + '%' : '-';
+            }
           } else {
             return this.formatCurrency(totVal);
           }
@@ -1798,7 +1814,7 @@
         getReplanLevel1CycleValue(cycleNum) {
           const cKey = String(cycleNum);
           const val = this.level1ReplanRow?.cycle_vals?.[cKey] || 0;
-          if (this.ffRepViewMode === 'pct' || this.ffRepViewMode === 'pct_service') {
+          if (this.ffRepViewMode === 'pct' || this.ffRepViewMode === 'pct_service' || this.ffRepViewMode === 'pct_etapa') {
             const totProj = this.replanResult?.total_budget || 1.0;
             return val > 0 ? ((val / totProj) * 100).toFixed(2) + '%' : '-';
           } else {
@@ -1808,7 +1824,7 @@
 
         getReplanLevel1Total() {
           const totVal = this.level1ReplanRow?.total || this.replanResult?.total_budget || 0;
-          if (this.ffRepViewMode === 'pct' || this.ffRepViewMode === 'pct_service') {
+          if (this.ffRepViewMode === 'pct' || this.ffRepViewMode === 'pct_service' || this.ffRepViewMode === 'pct_etapa') {
             return '100.00%';
           } else {
             return this.formatCurrency(totVal);
@@ -2470,7 +2486,7 @@
             'distribuicao': 'Distribuição (' + (this.distViewMode === 'pct' ? '% Obra' : (this.distViewMode === 'pct_service' ? 'Peso Serviço' : 'R$')) + ')',
             'fisico_financeiro': 'FF Previsto (' + (this.ffViewMode === 'pct' ? '%' : 'R$') + ')',
             'medicao': 'Medição da Obra',
-            'replanejado': 'Replanejado Saldo (' + (this.ffRepViewMode === 'pct' ? '% Obra' : (this.ffRepViewMode === 'pct_service' ? '% Serviço' : 'R$')) + ')',
+            'replanejado': 'Replanejado Saldo (' + (this.ffRepViewMode === 'pct' ? '% Obra' : (this.ffRepViewMode === 'pct_service' ? '% Serviço' : (this.ffRepViewMode === 'pct_etapa' ? '% Etapa' : 'R$'))) + ')',
             'ff_replanejado': 'FF Replanejado (' + (this.ffRepViewMode === 'pct' ? '%' : 'R$') + ')',
             'competencia': 'Competência Contábil (' + (this.compViewMode === 'pct' ? '%' : 'R$') + ')',
             'financeiro': 'Curva Financeira (' + (this.finViewMode === 'pct' ? '%' : 'R$') + ')'
