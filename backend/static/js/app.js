@@ -228,6 +228,13 @@
         },
 
         async init() {
+          const savedReplanSaldoPct = localStorage.getItem('replanSaldoInPct');
+          if (savedReplanSaldoPct !== null) {
+            this.replanSaldoInPct = savedReplanSaldoPct === 'true';
+          }
+          this.$watch('replanSaldoInPct', (val) => {
+            localStorage.setItem('replanSaldoInPct', val);
+          });
           await this.loadProjects();
           await this.loadVersions();
           await this.runSimulation();
@@ -2670,7 +2677,8 @@
               active_tab: this.activeTab,
               dist_view_mode: this.distViewMode || 'val',
               ff_rep_view_mode: this.ffRepViewMode || 'val',
-              ff_view_mode: this.ffViewMode || 'val'
+              ff_view_mode: this.ffViewMode || 'val',
+              replan_saldo_in_pct: !!this.replanSaldoInPct
             };
 
             const resp = await fetch("/api/replan/export", {

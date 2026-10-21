@@ -68,6 +68,7 @@ class ReplanRequest(BaseModel):
     dist_view_mode: Optional[str] = "val"
     ff_rep_view_mode: Optional[str] = "val"
     ff_view_mode: Optional[str] = "val"
+    replan_saldo_in_pct: Optional[bool] = False
 
 def _resolve_versions(req: "ReplanRequest", parsed: Dict[str, Any]):
     """Aplica as versões ativas de cada tela: dados importados, cronograma e vínculos editados."""
@@ -299,7 +300,8 @@ def export_replan(req: ReplanRequest):
         active_tab=req.active_tab or "ff_replanejado",
         dist_view_mode=req.dist_view_mode or "val",
         ff_rep_view_mode=req.ff_rep_view_mode or "val",
-        ff_view_mode=req.ff_view_mode or "val"
+        ff_view_mode=req.ff_view_mode or "val",
+        replan_saldo_in_pct=bool(req.replan_saldo_in_pct)
     )
 
     return StreamingResponse(

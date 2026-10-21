@@ -555,7 +555,7 @@ def add_sheet_ff_baseline(wb: openpyxl.Workbook, replan_result: Dict[str, Any], 
     _auto_fit_columns(ws, min_widths={'C': 38})
 
 
-def add_sheet_replanejado(wb: openpyxl.Workbook, replan_result: Dict[str, Any], view_mode: str = "val"):
+def add_sheet_replanejado(wb: openpyxl.Workbook, replan_result: Dict[str, Any], view_mode: str = "val", replan_saldo_in_pct: bool = False):
     if view_mode == "pct":
         title = "Replanejado Saldo (% Obra)"
     elif view_mode == "pct_service":
@@ -568,7 +568,8 @@ def add_sheet_replanejado(wb: openpyxl.Workbook, replan_result: Dict[str, Any], 
     cycles = replan_result.get("cycles", [])
     total_budget = replan_result.get("total_budget", 1.0) or 1.0
 
-    base_headers = ["Nível", "Código", "Descrição / Atividade", "Peso Futuro (%)", "Saldo Alocado (R$)"]
+    saldo_header = "Saldo Alocado (%)" if replan_saldo_in_pct else "Saldo Alocado (R$)"
+    base_headers = ["Nível", "Código", "Descrição / Atividade", "Peso Futuro (%)", saldo_header]
     suffix = " (% Obra)" if view_mode == "pct" else (" (% Serv)" if view_mode == "pct_service" else (" (% Etapa)" if view_mode == "pct_etapa" else " (R$)"))
     cycle_headers = [c["period_label"] + suffix for c in cycles]
     total_headers = base_headers + cycle_headers + ["Total Saldo Distribuído" + suffix]
@@ -586,7 +587,22 @@ def add_sheet_replanejado(wb: openpyxl.Workbook, replan_result: Dict[str, Any], 
         indent = "    " if lvl == 6 else ""
         desc = indent + str(r.get("description") or "")
         w_fut = (r.get("future_weight_pct", 0.0) / 100.0)
-        saldo_aloc = r.get("allocated_saldo", 0.0)
+
+        if replan_saldo_in_pct:
+            if lvl == 6:
+                if r.get("allocated_saldo_pct_service") is not None:
+                    saldo_aloc = (r.get("allocated_saldo_pct_service", 0.0) / 100.0)
+                else:
+                    p_budget = r.get("parent_budget") or 0.0
+                    saldo_aloc = (r.get("allocated_saldo", 0.0) / p_budget) if p_budget > 0 else 0.0
+            else:
+                if r.get("saldo_pct") is not None:
+                    saldo_aloc = (r.get("saldo_pct", 0.0) / 100.0)
+                else:
+                    b_val = r.get("budget") or 0.0
+                    saldo_aloc = (r.get("saldo", 0.0) / b_val) if b_val > 0 else 0.0
+        else:
+            saldo_aloc = r.get("allocated_saldo", 0.0) if lvl == 6 else r.get("saldo", r.get("allocated_saldo", 0.0))
 
         r_cells = [
             lvl,
@@ -635,7 +651,7 @@ def add_sheet_replanejado(wb: openpyxl.Workbook, replan_result: Dict[str, Any], 
         cur_row[0].alignment = Alignment(horizontal="center")
         cur_row[1].alignment = Alignment(horizontal="left")
         cur_row[3].number_format = '0.00%'
-        cur_row[4].number_format = 'R$ #,##0.00'
+        cur_row[4].number_format = '0.00%' if replan_saldo_in_pct else 'R$ #,##0.00'
 
         for c_offset, c in enumerate(cycles):
             c_cell = cur_row[5 + c_offset]
@@ -816,7 +832,8 @@ def export_replan_to_excel(
     active_tab: str = "ff_replanejado",
     dist_view_mode: str = "val",
     ff_rep_view_mode: str = "val",
-    ff_view_mode: str = "val"
+    ff_view_mode: str = "val",
+    replan_saldo_in_pct: bool = False
 ) -> Tuple[io.BytesIO, str]:
     """
     Exports a high-fidelity Excel workbook based on user parameters.
@@ -836,7 +853,7 @@ def export_replan_to_excel(
         add_sheet_distribuicao(wb, replan_result, view_mode=dist_view_mode)
         add_sheet_ff_baseline(wb, replan_result, view_mode=ff_view_mode)
         add_sheet_medicao(wb, replan_result)
-        add_sheet_replanejado(wb, replan_result, view_mode=ff_rep_view_mode)
+        add_sheet_replanejado(wb, replan_result, view_mode=ff_rep_view_mode, replan_saldo_in_pct=replan_saldo_in_pct)
         add_sheet_ff_replan(wb, replan_result, view_mode=ff_rep_view_mode)
         add_sheet_competencia(wb, replan_result, view_mode=ff_rep_view_mode)
         add_sheet_financeiro(wb, replan_result, view_mode=ff_rep_view_mode)
@@ -867,7 +884,7 @@ def export_replan_to_excel(
             mode_tag = "Percentual" if ff_view_mode == "pct" else "Valor_R$"
             filename = f"{proj_name}_FF_Previsto_{mode_tag}_M{cutoff_med}.xlsx"
         elif active_tab == "replanejado":
-            add_sheet_replanejado(wb, replan_result, view_mode=ff_rep_view_mode)
+            add_sheet_replanejado(wb, replan_result, view_mode=ff_rep_view_mode, replan_saldo_in_pct=replan_saldo_in_pct)
             if ff_rep_view_mode == "pct":
                 mode_tag = "Percentual_Obra"
             elif ff_rep_view_mode == "pct_service":
@@ -876,7 +893,8 @@ def export_replan_to_excel(
                 mode_tag = "Percentual_Etapa"
             else:
                 mode_tag = "Valor_R$"
-            filename = f"{proj_name}_Replanejado_Saldo_{mode_tag}_M{cutoff_med}.xlsx"
+            saldo_tag = "_SaldoPct" if replan_saldo_in_pct else ""
+            filename = f"{proj_name}_Replanejado_Saldo_{mode_tag}{saldo_tag}_M{cutoff_med}.xlsx"
         elif active_tab == "medicao":
             add_sheet_medicao(wb, replan_result)
             filename = f"{proj_name}_Medicao_Obra_M{cutoff_med}.xlsx"

@@ -85,6 +85,26 @@ def test_replanejado_metrics_and_view_modes():
     add_sheet_replanejado(wb, res, view_mode="pct_service")
     assert "Replanejado Saldo (% Serv)" in wb.sheetnames
 
+    # Test exporter with replan_saldo_in_pct=True
+    wb2 = openpyxl.Workbook()
+    add_sheet_replanejado(wb2, res, view_mode="val", replan_saldo_in_pct=True)
+    ws2 = wb2["Replanejado Saldo (R$)"]
+    assert ws2.cell(row=1, column=5).value == "Saldo Alocado (%)"
+    # Find Level 5 row and Level 6 row
+    l5_found = False
+    l6_found = False
+    for r_idx in range(2, ws2.max_row + 1):
+        lvl_val = ws2.cell(row=r_idx, column=1).value
+        saldo_fmt = ws2.cell(row=r_idx, column=5).number_format
+        assert saldo_fmt == '0.00%'
+        if lvl_val == 5:
+            assert abs(ws2.cell(row=r_idx, column=5).value - 0.50) < 0.001
+            l5_found = True
+        elif lvl_val == 6:
+            assert abs(ws2.cell(row=r_idx, column=5).value - 0.25) < 0.001
+            l6_found = True
+    assert l5_found and l6_found
+
     # Test export_replan_to_excel
     buf, filename = export_replan_to_excel(
         res,
@@ -93,6 +113,16 @@ def test_replanejado_metrics_and_view_modes():
     )
     assert buf is not None
     assert "Percentual_Servico" in filename
+
+    # Test export_replan_to_excel with replan_saldo_in_pct
+    buf2, filename2 = export_replan_to_excel(
+        res,
+        active_tab="replanejado",
+        ff_rep_view_mode="val",
+        replan_saldo_in_pct=True
+    )
+    assert buf2 is not None
+    assert "SaldoPct" in filename2
 
 def test_custom_replan_weights_manual_percentage():
     budget_items = {
