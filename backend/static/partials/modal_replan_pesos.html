@@ -150,18 +150,10 @@
               <th class="py-2 px-3">Atividade Filha (Nível 6)</th>
               
               <!-- Conditional Input Header -->
-              <template x-if="modalReplanCriteria === 'tempo'">
-                <th class="py-2 px-3 text-center w-28">Duração (dias)</th>
-              </template>
-              <template x-if="modalReplanCriteria === 'quantidade'">
-                <th class="py-2 px-3 text-right w-36">Quantidade</th>
-              </template>
-              <template x-if="modalReplanCriteria === 'area'">
-                <th class="py-2 px-3 text-right w-36">Área (m²)</th>
-              </template>
-              <template x-if="modalReplanCriteria === 'percentual'">
-                <th class="py-2 px-3 text-right w-36">Peso no Saldo (%)</th>
-              </template>
+              <th x-show="modalReplanCriteria === 'tempo'" class="py-2 px-3 text-center w-28">Duração (dias)</th>
+              <th x-show="modalReplanCriteria === 'quantidade'" class="py-2 px-3 text-right w-36">Quantidade</th>
+              <th x-show="modalReplanCriteria === 'area'" class="py-2 px-3 text-right w-36">Área (m²)</th>
+              <th x-show="modalReplanCriteria === 'percentual'" class="py-2 px-3 text-right w-36">Peso no Saldo (%)</th>
 
               <th class="py-2 px-3 text-right w-28">Peso Saldo (%)</th>
               <th class="py-2 px-3 text-right w-36">Saldo Alocado (R$)</th>
@@ -182,55 +174,47 @@
 
                 <!-- Conditional Input Column -->
                 <!-- Mode: Tempo -->
-                <template x-if="modalReplanCriteria === 'tempo'">
-                  <td class="py-2 px-3 text-center font-mono font-semibold text-slate-700 bg-slate-50/60" x-text="task.duration + ' dias'"></td>
-                </template>
+                <td x-show="modalReplanCriteria === 'tempo'" class="py-2 px-3 text-center font-mono font-semibold text-slate-700 bg-slate-50/60" x-text="task.duration + ' dias'"></td>
 
                 <!-- Mode: Quantidade -->
-                <template x-if="modalReplanCriteria === 'quantidade'">
-                  <td class="py-1.5 px-3 text-right">
-                    <input 
-                      type="number" 
-                      min="0" 
-                      step="any"
-                      x-model.number="task.input_qty" 
-                      @input="onReplanQtyOrAreaChange()"
-                      placeholder="0.00"
-                      class="w-full text-right bg-white border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-mono font-bold text-slate-800 outline-none">
-                  </td>
-                </template>
+                <td x-show="modalReplanCriteria === 'quantidade'" class="py-1.5 px-3 text-right">
+                  <input 
+                    type="number" 
+                    min="0" 
+                    step="any"
+                    x-model.number="task.input_qty" 
+                    @input="onReplanQtyOrAreaChange()"
+                    placeholder="0.00"
+                    class="w-full text-right bg-white border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-mono font-bold text-slate-800 outline-none">
+                </td>
 
                 <!-- Mode: Área -->
-                <template x-if="modalReplanCriteria === 'area'">
-                  <td class="py-1.5 px-3 text-right">
+                <td x-show="modalReplanCriteria === 'area'" class="py-1.5 px-3 text-right">
+                  <input 
+                    type="number" 
+                    min="0" 
+                    step="any"
+                    x-model.number="task.input_area" 
+                    @input="onReplanQtyOrAreaChange()"
+                    placeholder="0.00 m²"
+                    class="w-full text-right bg-white border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-mono font-bold text-slate-800 outline-none">
+                </td>
+
+                <!-- Mode: Percentual -->
+                <td x-show="modalReplanCriteria === 'percentual'" class="py-1.5 px-3 text-right">
+                  <div class="relative flex items-center">
                     <input 
                       type="number" 
                       min="0" 
-                      step="any"
-                      x-model.number="task.input_area" 
-                      @input="onReplanQtyOrAreaChange()"
-                      placeholder="0.00 m²"
-                      class="w-full text-right bg-white border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-mono font-bold text-slate-800 outline-none">
-                  </td>
-                </template>
-
-                <!-- Mode: Percentual -->
-                <template x-if="modalReplanCriteria === 'percentual'">
-                  <td class="py-1.5 px-3 text-right">
-                    <div class="relative flex items-center">
-                      <input 
-                        type="number" 
-                        min="0" 
-                        max="100" 
-                        step="0.01"
-                        x-model.number="task.weight_pct" 
-                        @input="onReplanPercentChange(idx)"
-                        placeholder="0.00"
-                        class="w-full text-right pr-6 bg-white border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-mono font-bold text-indigo-700 outline-none">
-                      <span class="absolute right-2 text-slate-400 text-xs font-bold pointer-events-none">%</span>
-                    </div>
-                  </td>
-                </template>
+                      max="100" 
+                      step="0.01"
+                      x-model.number="task.weight_pct" 
+                      @input="onReplanPercentChange(idx)"
+                      placeholder="0.00"
+                      class="w-full text-right pr-6 bg-white border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-mono font-bold text-indigo-700 outline-none">
+                    <span class="absolute right-2 text-slate-400 text-xs font-bold pointer-events-none">%</span>
+                  </div>
+                </td>
 
                 <!-- Resulting Weight % of Saldo -->
                 <td class="py-2 px-3 text-right font-mono font-bold text-indigo-700" x-text="task.weight_pct ? task.weight_pct.toFixed(2) + '%' : '0.00%'"></td>

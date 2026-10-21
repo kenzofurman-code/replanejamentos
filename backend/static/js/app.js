@@ -1869,7 +1869,9 @@
           const allRows = this.replanResult?.tab_replanejado || [];
           const childRows = allRows.filter(r => r.parent_code === row.code && r.level === 6);
           if (childRows.length === 0) {
-            alert("Este serviço não possui atividades vinculadas com saldo futuro a redistribuir.");
+            if (confirm(`O serviço "${row.code} - ${row.description}" ainda não possui atividades vinculadas no cronograma para redistribuir o saldo.\n\nDeseja abrir a janela de vínculos agora para vincular atividades do cronograma a este serviço?`)) {
+              this.openLinkModal(row.code, -1);
+            }
             return;
           }
 
