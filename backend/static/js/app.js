@@ -74,6 +74,10 @@
         levelFilterFF: 3,       // 2, 3, 4, 0 (all)
         levelFilterMed: 0,      // 0 (all), 2, 3, 4
         showPrevistoMedicao: false, // Checkbox na Medição: exibe coluna P (Previsto) ao lado de R (Realizado)
+        cachedMedCycleCols: [],
+        medPrevistoLookup: {},
+        medRowMap: {},
+        medL6MonthlyMap: {},
         levelFilterFFRep: 3,    // 2, 3, 4, 0
         levelFilterReplan: 0,   // 0 (all), 2, 3, 4, 5
         levelFilterComp: 3,     // 2, 3, 4, 0
@@ -233,7 +237,10 @@
           this.$watch('searchDist', () => { this.distPage = 1; this.$nextTick(() => lucide.createIcons()); });
           this.$watch('searchCrono', () => { this.cronoPage = 1; this.$nextTick(() => lucide.createIcons()); });
           this.$watch('distViewMode', () => { this.$nextTick(() => lucide.createIcons()); });
-          this.$watch('showPrevistoMedicao', () => { this.$nextTick(() => lucide.createIcons()); });
+          this.$watch('showPrevistoMedicao', () => {
+            this.updateMedCycleCols();
+            this.$nextTick(() => lucide.createIcons());
+          });
         },
 
         async loadProjects() {
@@ -484,6 +491,9 @@
             if (this.replanResult.has_custom_links !== undefined) {
               this.hasCustomLinksFlag = !!this.replanResult.has_custom_links;
             }
+
+            this.buildMedicaoLookups();
+            this.updateMedCycleCols();
 
             this.$nextTick(() => {
               this.renderCurvaS();
@@ -804,18 +814,14 @@
 
         getL5MonthPct(rowOrCode, medNum) {
           const code = (typeof rowOrCode === 'object') ? rowOrCode.code : rowOrCode;
-          if (this.customMonthlyL5[code] && this.customMonthlyL5[code][medNum] !== undefined) {
+          if (this.customMonthlyL5[code]?.[medNum] !== undefined) {
             return this.customMonthlyL5[code][medNum];
           }
-          if (typeof rowOrCode === 'object' && rowOrCode.monthly_map && rowOrCode.monthly_map[String(medNum)] !== undefined) {
-            return rowOrCode.monthly_map[String(medNum)];
+          if (typeof rowOrCode === 'object' && rowOrCode.monthly_map) {
+            return rowOrCode.monthly_map[String(medNum)] || 0.0;
           }
-          const row = (typeof rowOrCode === 'object') ? rowOrCode : this.replanResult?.tab_medicao?.find(r => r.code === code);
-          if (row?.monthly_map && row.monthly_map[String(medNum)] !== undefined) {
-            return row.monthly_map[String(medNum)];
-          }
-          const col = row?.monthly_measurements?.find(m => m.med_num === medNum);
-          return col ? col.realizado_pct : 0.0;
+          const row = this.medRowMap?.[code];
+          return row?.monthly_map?.[String(medNum)] || 0.0;
         },
 
         getL6MonthPct(rowOrParentCode, taskNameOrMedNum, medNumMaybe) {
@@ -824,30 +830,19 @@
             parentCode = rowOrParentCode.parent_code;
             taskName = rowOrParentCode.task_name;
             medNum = taskNameOrMedNum;
-            if (this.customMonthlyL6[parentCode] && 
-                this.customMonthlyL6[parentCode][taskName] && 
-                this.customMonthlyL6[parentCode][taskName][medNum] !== undefined) {
-              return this.customMonthlyL6[parentCode][taskName][medNum];
-            }
-            if (rowOrParentCode.monthly_measurements && rowOrParentCode.monthly_measurements[String(medNum)] !== undefined) {
-              return rowOrParentCode.monthly_measurements[String(medNum)];
-            }
           } else {
             parentCode = rowOrParentCode;
             taskName = taskNameOrMedNum;
             medNum = medNumMaybe;
-            if (this.customMonthlyL6[parentCode] && 
-                this.customMonthlyL6[parentCode][taskName] && 
-                this.customMonthlyL6[parentCode][taskName][medNum] !== undefined) {
-              return this.customMonthlyL6[parentCode][taskName][medNum];
-            }
-            const row = this.replanResult?.tab_medicao?.find(r => r.code === parentCode);
-            const t = row?.tasks_l6?.find(tk => tk.task_name === taskName);
-            if (t?.monthly_measurements) {
-              return t.monthly_measurements[String(medNum)] || 0.0;
-            }
           }
-          return 0.0;
+          if (this.customMonthlyL6[parentCode]?.[taskName]?.[medNum] !== undefined) {
+            return this.customMonthlyL6[parentCode][taskName][medNum];
+          }
+          if (typeof rowOrParentCode === 'object' && rowOrParentCode.monthly_measurements) {
+            return rowOrParentCode.monthly_measurements[String(medNum)] || 0.0;
+          }
+          const tKey = parentCode + '::' + taskName;
+          return this.medL6MonthlyMap?.[tKey]?.[String(medNum)] || 0.0;
         },
 
         getRollupMonthPct(row, medNum) {
@@ -913,18 +908,111 @@
           return this.formatPercent(pct);
         },
 
-        get medCycleCols() {
+        buildMedicaoLookups() {
+          const lookup = {};
+          const cycles = this.replanResult?.cycles || [];
+          const cNums = cycles.map(c => String(c.num));
+
+          // 1. Level 5 from tab_replanejado
+          for (const r of (this.replanResult?.tab_replanejado || [])) {
+            if (r.level === 5 && r.code) {
+              const cPcts = r.cycle_pcts_service || {};
+              for (const cn of cNums) {
+                const v = cPcts[cn];
+                if (v > 0) lookup[`${r.code}_${cn}`] = v;
+              }
+            } else if (r.level === 6 && r.parent_code) {
+              const tname = r.task_name || r.description;
+              const sal = r.allocated_saldo || 0.0;
+              const cVals = r.cycle_vals || {};
+              const cPcts = r.cycle_pcts_service || {};
+              for (const cn of cNums) {
+                const cv = cVals[cn] || 0.0;
+                if (sal > 0 && cv > 0) {
+                  lookup[`${r.parent_code}::${tname}_${cn}`] = (cv / sal) * 100.0;
+                } else if (cPcts[cn] > 0) {
+                  lookup[`${r.parent_code}::${tname}_${cn}`] = cPcts[cn];
+                }
+              }
+            }
+          }
+
+          // 2. Fallback past cycles from tab_distribuicao
+          for (const r of (this.replanResult?.tab_distribuicao || [])) {
+            if (r.level === 5 && r.code) {
+              const cPcts = r.cycle_pcts || {};
+              for (const cn of cNums) {
+                const k = `${r.code}_${cn}`;
+                if (lookup[k] === undefined && cPcts[cn] > 0) {
+                  lookup[k] = cPcts[cn];
+                }
+              }
+            } else if (r.level === 6 && r.parent_code) {
+              const tname = r.task_name || r.description;
+              const cPcts = r.cycle_pcts || {};
+              for (const cn of cNums) {
+                const k = `${r.parent_code}::${tname}_${cn}`;
+                if (lookup[k] === undefined && cPcts[cn] > 0) {
+                  lookup[k] = cPcts[cn];
+                }
+              }
+            }
+          }
+
+          // 3. Macro levels from tab_ff_replanejado
+          for (const r of (this.replanResult?.tab_ff_replanejado || [])) {
+            if (r.level >= 1 && r.level <= 4) {
+              const b = r.budget || 0.0;
+              const cVals = r.cycle_vals || {};
+              if (b > 0) {
+                for (const cn of cNums) {
+                  const cv = cVals[cn] || 0.0;
+                  if (cv > 0) {
+                    lookup[`${r.code}_${cn}`] = (cv / b) * 100.0;
+                  }
+                }
+              }
+            }
+          }
+
+          // 4. Level 1 Pinned Totalizer
+          const totB = this.replanResult?.total_budget || 1.0;
+          if (this.level1ReplanRow && totB > 0) {
+            const cVals = this.level1ReplanRow.cycle_vals || {};
+            for (const cn of cNums) {
+              const cv = cVals[cn] || 0.0;
+              if (cv > 0) {
+                lookup[`level_1_${cn}`] = (cv / totB) * 100.0;
+              }
+            }
+          }
+
+          this.medPrevistoLookup = lookup;
+
+          // Pre-index tab_medicao for instant O(1) lookups
+          this.medRowMap = Object.fromEntries((this.replanResult?.tab_medicao || []).map(r => [r.code, r]));
+          this.medL6MonthlyMap = {};
+          for (const r of (this.replanResult?.tab_medicao || [])) {
+            if (r.tasks_l6) {
+              for (const t of r.tasks_l6) {
+                this.medL6MonthlyMap[r.code + '::' + t.task_name] = t.monthly_measurements || {};
+              }
+            }
+          }
+        },
+
+        updateMedCycleCols() {
           const cycles = this.replanResult?.cycles || [];
           if (!this.showPrevistoMedicao) {
-            return cycles.map(c => ({
+            this.cachedMedCycleCols = cycles.map(c => ({
               key: `${c.num}_R`,
               num: c.num,
               type: 'R',
               label: 'M' + c.num,
               subLabel: c.period_label || c.name || ('M' + c.num),
-              isPast: c.num <= this.cutoffMedNum,
-              cycle: c
+              isPast: c.num <= this.cutoffMedNum
             }));
+            return;
           }
           const cols = [];
           for (const c of cycles) {
@@ -934,8 +1022,7 @@
               type: 'P',
               label: `M${c.num} P`,
               subLabel: c.period_label || c.name || ('M' + c.num),
-              isPast: c.num <= this.cutoffMedNum,
-              cycle: c
+              isPast: c.num <= this.cutoffMedNum
             });
             cols.push({
               key: `${c.num}_R`,
@@ -943,106 +1030,24 @@
               type: 'R',
               label: `M${c.num} R`,
               subLabel: c.period_label || c.name || ('M' + c.num),
-              isPast: c.num <= this.cutoffMedNum,
-              cycle: c
+              isPast: c.num <= this.cutoffMedNum
             });
           }
-          return cols;
-        },
-
-        get replanL5Map() {
-          const map = {};
-          for (const r of (this.replanResult?.tab_replanejado || [])) {
-            if (r.level === 5 && r.code) map[r.code] = r;
-          }
-          return map;
-        },
-
-        get replanL6Map() {
-          const map = {};
-          for (const r of (this.replanResult?.tab_replanejado || [])) {
-            if (r.level === 6 && r.parent_code) {
-              if (r.task_name) map[r.parent_code + '::' + r.task_name] = r;
-              if (r.description) map[r.parent_code + '::' + r.description] = r;
-            }
-          }
-          return map;
-        },
-
-        get distL5Map() {
-          const map = {};
-          for (const r of (this.replanResult?.tab_distribuicao || [])) {
-            if (r.level === 5 && r.code) map[r.code] = r;
-          }
-          return map;
-        },
-
-        get distL6Map() {
-          const map = {};
-          for (const r of (this.replanResult?.tab_distribuicao || [])) {
-            if (r.level === 6 && r.parent_code) {
-              if (r.task_name) map[r.parent_code + '::' + r.task_name] = r;
-              if (r.description) map[r.parent_code + '::' + r.description] = r;
-            }
-          }
-          return map;
-        },
-
-        get replanFFMap() {
-          const map = {};
-          for (const r of (this.replanResult?.tab_ff_replanejado || [])) {
-            if (r.code) map[r.code] = r;
-          }
-          return map;
+          this.cachedMedCycleCols = cols;
         },
 
         getMedPrevistoPct(row, cycleNum) {
-          if (!row) return 0;
-          const cKey = String(cycleNum);
-          if (row.isL6) {
-            const l6Key = row.parent_code + '::' + (row.task_name || row.description);
-            const repChild = this.replanL6Map[l6Key];
-            if (repChild) {
-              if (repChild.allocated_saldo > 0 && repChild.cycle_vals?.[cKey] > 0) {
-                return (repChild.cycle_vals[cKey] / repChild.allocated_saldo) * 100;
-              }
-              if (repChild.cycle_pcts_service?.[cKey] > 0) {
-                return repChild.cycle_pcts_service[cKey];
-              }
-            }
-            const distChild = this.distL6Map[l6Key];
-            if (distChild?.cycle_pcts?.[cKey] > 0) {
-              return distChild.cycle_pcts[cKey];
-            }
-            return 0;
-          }
-          if (row.level === 5) {
-            const repL5 = this.replanL5Map[row.code];
-            if (repL5?.cycle_pcts_service?.[cKey] > 0) {
-              return repL5.cycle_pcts_service[cKey];
-            }
-            const distL5 = this.distL5Map[row.code];
-            if (distL5?.cycle_pcts?.[cKey] > 0) {
-              return distL5.cycle_pcts[cKey];
-            }
-            return 0;
-          }
-          // Levels 1..4
-          const ffRow = this.replanFFMap[row.code];
-          if (ffRow && ffRow.budget > 0) {
-            const val = ffRow.cycle_vals?.[cKey] || 0;
-            return (val / ffRow.budget) * 100;
-          }
-          return 0;
+          if (!row || !this.medPrevistoLookup) return 0.0;
+          const k = row.isL6 
+            ? (row.parent_code + '::' + (row.task_name || row.description) + '_' + cycleNum)
+            : (row.code + '_' + cycleNum);
+          return this.medPrevistoLookup[k] || 0.0;
         },
 
         getMedLevel1MonthDisplay(col) {
           if (!col) return '-';
           if (col.type === 'P') {
-            const totBudget = this.replanResult?.total_budget || 1.0;
-            const cKey = String(col.num);
-            const val = this.level1ReplanRow?.cycle_vals?.[cKey] || 0;
-            const pct = (val / totBudget) * 100;
+            const pct = this.medPrevistoLookup?.[`level_1_${col.num}`] || 0.0;
             return pct > 0.001 ? this.formatPercent(pct) : '-';
           }
           return this.level1MedRow ? this.getRollupMonthPct(this.level1MedRow, col.num) : '-';
