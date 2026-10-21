@@ -2535,6 +2535,8 @@
               custom_monthly_medicao: this.customMonthlyL5,
               custom_monthly_medicao_l6: this.customMonthlyL6,
               custom_schedule_overrides: this.customScheduleOverrides,
+              custom_links_by_l5: (this.customLinksByL5 && Object.keys(this.customLinksByL5).length > 0) ? this.customLinksByL5 : null,
+              custom_weights: (this.customReplanWeights && Object.keys(this.customReplanWeights).length > 0) ? this.customReplanWeights : null,
               export_target: target,
               active_tab: this.activeTab,
               dist_view_mode: this.distViewMode || 'val',

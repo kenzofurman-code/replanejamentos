@@ -271,6 +271,28 @@ def export_replan(req: ReplanRequest):
         custom_links_by_l5=custom_links
     )
 
+    try:
+        stage_cfg = req.custom_stage_configs
+        if not stage_cfg:
+            stage_cfg = load_curvas_config(req.project_id, parsed.get("budget_items", {}))
+
+        comp_fin_res = compute_competence_and_cashflow(
+            budget_items=parsed.get("budget_items", {}),
+            tab_ff_replan_rows=result.get("tab_ff_replanejado", []),
+            cycles=result.get("cycles", []),
+            total_proj_budget=result.get("total_budget", parsed.get("total_budget", 0.0)),
+            stage_configs=stage_cfg,
+            cycle_start_day=req.cycle_start_day,
+            cycle_end_day=req.cycle_end_day
+        )
+        result["tab_competencia"] = comp_fin_res["tab_competencia"]
+        result["tab_financeiro"] = comp_fin_res["tab_financeiro"]
+        result["stage_configs"] = comp_fin_res["stage_configs"]
+        result["extended_cycles"] = comp_fin_res["extended_cycles"]
+        result["s_curves_comparison"] = comp_fin_res["s_curves_comparison"]
+    except Exception as e:
+        print(f"Aviso ao calcular curvas de competência e financeiro no export: {e}")
+
     excel_io, filename = export_replan_to_excel(
         replan_result=result,
         export_target=req.export_target or "current",
