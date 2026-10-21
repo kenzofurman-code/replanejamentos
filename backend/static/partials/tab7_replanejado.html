@@ -240,14 +240,21 @@
                         row.level === 6 ? 'sticky-level-6 text-blue-700' : (getLevelStickyClass(row.level) + (row.level <= 3 ? ' text-blue-200' : ' text-blue-700')),
                         row.level === 5 ? 'cursor-pointer hover:text-indigo-700 hover:bg-indigo-50/80 transition-colors group/l5saldo' : ''
                       ]"
-                      @click="row.level === 5 && openReplanWeightModal(row)"
+                      @click.stop="row.level === 5 && openReplanWeightModal(row)"
                       :title="row.level === 5 ? 'Clique para redistribuir o saldo entre as atividades filhas' : ''">
                     <div class="flex items-center justify-end space-x-1">
                       <span x-show="row.level === 5 && row.has_custom_replan_weights" 
                             title="Distribuição personalizada de saldo ativa" 
                             class="inline-block w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>
                       <span x-text="getReplanSaldoValue(row)"></span>
-                      <i x-show="row.level === 5" data-lucide="sliders-horizontal" class="w-2.5 h-2.5 text-indigo-500 opacity-0 group-hover/l5saldo:opacity-100 transition-opacity shrink-0"></i>
+                      <button 
+                        type="button"
+                        x-show="row.level === 5" 
+                        @click.stop="openReplanWeightModal(row)" 
+                        class="p-0.5 rounded text-indigo-500 hover:text-indigo-700 hover:bg-indigo-100 transition shrink-0 cursor-pointer"
+                        title="Redistribuir saldo entre atividades filhas">
+                        <i data-lucide="sliders-horizontal" class="w-3 h-3"></i>
+                      </button>
                     </div>
                   </td>
 

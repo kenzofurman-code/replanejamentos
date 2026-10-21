@@ -1910,7 +1910,15 @@
           });
 
           this.showReplanWeightModal = true;
-          this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+          this.$nextTick(() => {
+            if (window.lucide) {
+              const modalEl = document.querySelector('[x-show="showReplanWeightModal"]');
+              try {
+                if (modalEl) lucide.createIcons({ root: modalEl });
+                else lucide.createIcons();
+              } catch (_) {}
+            }
+          });
         },
 
         closeReplanWeightModal() {
