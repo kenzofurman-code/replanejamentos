@@ -2,6 +2,7 @@ import os
 import re
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from .config import settings
@@ -22,6 +23,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# High-performance GZip compression (reduces 16MB payload to < 600KB)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Include Routers
 app.include_router(projects.router)

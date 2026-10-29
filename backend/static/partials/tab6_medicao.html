@@ -153,13 +153,12 @@
                       :style="row.isL6 ? 'padding-left: 2rem;' : 'padding-left: ' + ((row.level-1)*12 + 8) + 'px'">
                     <div class="flex items-center justify-between" x-show="!row.isL6">
                       <span class="truncate" :title="row.description" x-text="row.description"></span>
-                      <template x-if="!row.isL6 && row.level === 5 && row.tasks_l6 && row.tasks_l6.length > 0">
-                        <button 
-                          @click="toggleExpandL5(row.code)"
-                          class="text-[9px] px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold border border-blue-200 ml-1.5 transition shrink-0">
-                          <span x-text="expandedL5[row.code] ? '▼ Ocultar' : ('▶ N6 (' + (row.tasks_l6 ? row.tasks_l6.length : 0) + ')')"></span>
-                        </button>
-                      </template>
+                      <button 
+                        x-show="!row.isL6 && row.level === 5 && row.tasks_l6 && row.tasks_l6.length > 0"
+                        @click="toggleExpandL5(row.code)"
+                        class="text-[9px] px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold border border-blue-200 ml-1.5 transition shrink-0">
+                        <span x-text="expandedL5[row.code] ? '▼ Ocultar' : ('▶ N6 (' + (row.tasks_l6 ? row.tasks_l6.length : 0) + ')')"></span>
+                      </button>
                     </div>
                     <div class="flex items-center" x-show="row.isL6">
                       <span class="text-blue-500 font-bold mr-1 shrink-0">↳</span>
@@ -202,35 +201,32 @@
                         </span>
                       </div>
 
-                      <!-- Coluna R: Realizado (Medição editável ou rollup) -->
+                      <!-- Coluna R: Realizado (Medição editável ou rollup - Sem nested templates para alta performance) -->
                       <div x-show="col.type === 'R'">
-                        <template x-if="row.isL6">
-                          <input 
-                            type="text" 
-                            inputmode="decimal" 
-                            :value="formatInputPct(getL6MonthPct(row, col.num))" 
-                            @change="onMonthInputL6(row.parent_code, row.task_name, col.num, $event.target.value)" 
-                            @keydown.enter="$event.target.blur()"
-                            :class="getL6MonthPct(row, col.num) > 0 ? 'bg-blue-100 text-blue-900 border-blue-400 font-bold' : 'bg-white text-slate-700 border-amber-300 font-semibold'"
-                            class="w-14 text-right text-[10px] rounded px-1 py-0.5 border focus:border-blue-500 outline-none transition-colors no-spin-arrows">
-                        </template>
-                        <template x-if="!row.isL6 && row.level === 5">
-                          <input 
-                            type="text" 
-                            inputmode="decimal" 
-                            :value="formatInputPct(getL5MonthPct(row, col.num))" 
-                            @change="onMonthInputL5(row.code, col.num, $event.target.value)" 
-                            @keydown.enter="$event.target.blur()"
-                            :class="col.num <= cutoffMedNum ? 'bg-emerald-50 text-emerald-800 font-bold border-emerald-300' : 'bg-white text-slate-700 border-slate-300'" 
-                            class="w-14 text-right text-[10px] rounded px-1 py-0.5 border focus:border-blue-500 outline-none no-spin-arrows">
-                        </template>
-                        <template x-if="!row.isL6 && row.level < 5">
-                          <span 
-                            class="text-[10px] font-medium" 
-                            :class="row.level <= 3 ? 'text-white' : 'text-slate-600'"
-                            x-text="getRollupMonthPct(row, col.num)">
-                          </span>
-                        </template>
+                        <input 
+                          x-show="row.isL6"
+                          type="text" 
+                          inputmode="decimal" 
+                          :value="formatInputPct(getL6MonthPct(row, col.num))" 
+                          @change="onMonthInputL6(row.parent_code, row.task_name, col.num, $event.target.value)" 
+                          @keydown.enter="$event.target.blur()"
+                          :class="getL6MonthPct(row, col.num) > 0 ? 'bg-blue-100 text-blue-900 border-blue-400 font-bold' : 'bg-white text-slate-700 border-amber-300 font-semibold'"
+                          class="w-14 text-right text-[10px] rounded px-1 py-0.5 border focus:border-blue-500 outline-none transition-colors no-spin-arrows">
+                        <input 
+                          x-show="!row.isL6 && row.level === 5"
+                          type="text" 
+                          inputmode="decimal" 
+                          :value="formatInputPct(getL5MonthPct(row, col.num))" 
+                          @change="onMonthInputL5(row.code, col.num, $event.target.value)" 
+                          @keydown.enter="$event.target.blur()"
+                          :class="col.num <= cutoffMedNum ? 'bg-emerald-50 text-emerald-800 font-bold border-emerald-300' : 'bg-white text-slate-700 border-slate-300'" 
+                          class="w-14 text-right text-[10px] rounded px-1 py-0.5 border focus:border-blue-500 outline-none no-spin-arrows">
+                        <span 
+                          x-show="!row.isL6 && row.level < 5"
+                          class="text-[10px] font-medium" 
+                          :class="row.level <= 3 ? 'text-white' : 'text-slate-600'"
+                          x-text="getRollupMonthPct(row, col.num)">
+                        </span>
                       </div>
 
                     </td>

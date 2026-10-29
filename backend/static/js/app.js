@@ -81,7 +81,8 @@
         medRowMap: {},
         medL6MonthlyMap: {},
         levelFilterFFRep: 3,    // 2, 3, 4, 0
-        levelFilterReplan: 0,   // 0 (all), 2, 3, 4, 5
+        levelFilterReplan: 5,   // 5 (default: até N5 com accordion N6), 0 (todos N2-N6), 2, 3, 4
+        expandedReplanL5: {},   // { [code]: boolean }
         levelFilterComp: 3,     // 2, 3, 4, 0
         levelFilterFin: 3,      // 2, 3, 4, 0
 
@@ -499,6 +500,44 @@
           });
         },
 
+        prepareMedicaoRows(tab_medicao) {
+          if (!tab_medicao || !Array.isArray(tab_medicao)) return;
+          for (let i = 0; i < tab_medicao.length; i++) {
+            const r = tab_medicao[i];
+            r.isL6 = false;
+            r._rowKey = r.code;
+            if (r.tasks_l6 && r.tasks_l6.length > 0) {
+              for (let j = 0; j < r.tasks_l6.length; j++) {
+                const t = r.tasks_l6[j];
+                t.isL6 = true;
+                t._rowKey = r.code + '_' + t.task_name;
+                t.parent_code = r.code;
+                t.monthly_measurements = t.monthly_measurements || {};
+              }
+            }
+          }
+        },
+
+        indexReplanData(tab_replanejado) {
+          this._replanChildrenByParent = {};
+          if (!tab_replanejado || !Array.isArray(tab_replanejado)) return;
+          for (let i = 0; i < tab_replanejado.length; i++) {
+            const r = tab_replanejado[i];
+            if (r.level === 6 && r.parent_code) {
+              if (!this._replanChildrenByParent[r.parent_code]) {
+                this._replanChildrenByParent[r.parent_code] = [];
+              }
+              this._replanChildrenByParent[r.parent_code].push(r);
+            }
+          }
+          for (let i = 0; i < tab_replanejado.length; i++) {
+            const r = tab_replanejado[i];
+            if (r.level === 5) {
+              r.l6_count = (this._replanChildrenByParent[r.code] || []).length;
+            }
+          }
+        },
+
         async runSimulation() {
           if (this.isLoading) return;
           this.isLoading = true;
@@ -529,7 +568,18 @@
               return;
             }
 
-            this.replanResult = await resp.json();
+            const rawData = await resp.json();
+            this.prepareMedicaoRows(rawData.tab_medicao);
+            this.indexReplanData(rawData.tab_replanejado);
+
+            // Freeze large calculation tables to eliminate Alpine recursive reactivity proxying overhead
+            const freezeKeys = ['tab_distribuicao', 'tab_ff_replanejado', 'tree_rows', 'tab_fisico_financeiro', 'tab_orcamento'];
+            for (let i = 0; i < freezeKeys.length; i++) {
+              const k = freezeKeys[i];
+              if (rawData[k] && Array.isArray(rawData[k])) Object.freeze(rawData[k]);
+            }
+
+            this.replanResult = rawData;
             if (this.replanResult.cutoff_med_num) {
               this.cutoffMedNum = this.replanResult.cutoff_med_num;
             }
@@ -822,31 +872,25 @@
           }
 
           const out = [];
-          for (const row of filtered) {
+          const monthsFilterActive = this.selectedFilterMonths.length > 0;
+          for (let i = 0; i < filtered.length; i++) {
+            const row = filtered[i];
             if (row.level === 1) continue;
-            out.push({ ...row, isL6: false, _rowKey: row.code });
-            if (row.level === 5 && (this.expandedL5[row.code] || this.selectedFilterMonths.length > 0) && row.tasks_l6 && row.tasks_l6.length > 0) {
-              for (const t of row.tasks_l6) {
-                if (this.selectedFilterMonths.length > 0) {
+            out.push(row);
+            if (row.level === 5 && (this.expandedL5[row.code] || monthsFilterActive) && row.tasks_l6 && row.tasks_l6.length > 0) {
+              for (let j = 0; j < row.tasks_l6.length; j++) {
+                const t = row.tasks_l6[j];
+                if (monthsFilterActive) {
                   let tHasVal = false;
-                  for (const m of this.selectedFilterMonths) {
-                    if (this.getL6MonthPct(row.code, t.task_name, m) > 0.0001) {
+                  for (let k = 0; k < this.selectedFilterMonths.length; k++) {
+                    if (this.getL6MonthPct(row.code, t.task_name, this.selectedFilterMonths[k]) > 0.0001) {
                       tHasVal = true;
                       break;
                     }
                   }
                   if (!tHasVal) continue;
                 }
-                out.push({
-                  isL6: true,
-                  _rowKey: row.code + '_' + t.task_name,
-                  parent_code: row.code,
-                  task_name: t.task_name,
-                  duration: t.duration,
-                  weight_pct: t.weight_pct,
-                  measured_pct: t.measured_pct,
-                  monthly_measurements: t.monthly_measurements || {}
-                });
+                out.push(t);
               }
             }
           }
@@ -1050,18 +1094,22 @@
             }
           }
 
-          this.medPrevistoLookup = lookup;
+          this.medPrevistoLookup = Object.freeze(lookup);
 
-          // Pre-index tab_medicao for instant O(1) lookups
-          this.medRowMap = Object.fromEntries((this.replanResult?.tab_medicao || []).map(r => [r.code, r]));
-          this.medL6MonthlyMap = {};
-          for (const r of (this.replanResult?.tab_medicao || [])) {
-            if (r.tasks_l6) {
-              for (const t of r.tasks_l6) {
-                this.medL6MonthlyMap[r.code + '::' + t.task_name] = t.monthly_measurements || {};
+          // Pre-index tab_medicao for instant O(1) lookups (frozen to eliminate Alpine proxy overhead)
+          this.medRowMap = Object.freeze(Object.fromEntries((this.replanResult?.tab_medicao || []).map(r => [r.code, r])));
+          const l6map = {};
+          const medRows = this.replanResult?.tab_medicao || [];
+          for (let i = 0; i < medRows.length; i++) {
+            const r = medRows[i];
+            if (r.tasks_l6 && r.tasks_l6.length > 0) {
+              for (let j = 0; j < r.tasks_l6.length; j++) {
+                const t = r.tasks_l6[j];
+                l6map[r.code + '::' + t.task_name] = t.monthly_measurements || {};
               }
             }
           }
+          this.medL6MonthlyMap = Object.freeze(l6map);
         },
 
         updateMedCycleCols() {
@@ -1901,7 +1949,9 @@
           this.modalReplanRow = row;
 
           const allRows = this.replanResult?.tab_replanejado || [];
-          const childRows = allRows.filter(r => r.parent_code === row.code && r.level === 6);
+          const childRows = (this._replanChildrenByParent && this._replanChildrenByParent[row.code]) 
+            ? this._replanChildrenByParent[row.code] 
+            : allRows.filter(r => r.parent_code === row.code && r.level === 6);
           if (childRows.length === 0) {
             if (confirm(`O serviço "${row.code} - ${row.description}" ainda não possui atividades vinculadas no cronograma para redistribuir o saldo.\n\nDeseja abrir a janela de vínculos agora para vincular atividades do cronograma a este serviço?`)) {
               this.openLinkModal(row.code, -1);
@@ -2783,11 +2833,61 @@
           return filtered.slice(0, this.cronoPage * this.cronoPageSize);
         },
 
+        toggleExpandReplanL5(code) {
+          this.expandedReplanL5 = Object.assign({}, this.expandedReplanL5, { [code]: !this.expandedReplanL5[code] });
+        },
+
+        toggleAllReplanL6() {
+          if (this.isAnyReplanL6Expanded()) {
+            this.expandedReplanL5 = {};
+            if (this.levelFilterReplan === 0) this.levelFilterReplan = 5;
+          } else {
+            const map = {};
+            const all = this.replanResult?.tab_replanejado || [];
+            for (let i = 0; i < all.length; i++) {
+              if (all[i].level === 5 && all[i].code) map[all[i].code] = true;
+            }
+            this.expandedReplanL5 = map;
+          }
+        },
+
+        isAnyReplanL6Expanded() {
+          if (this.levelFilterReplan === 0) return true;
+          return Object.values(this.expandedReplanL5 || {}).some(Boolean);
+        },
+
+        getReplanL6Count(code) {
+          if (!code) return 0;
+          return (this._replanChildrenByParent && this._replanChildrenByParent[code]) ? this._replanChildrenByParent[code].length : 0;
+        },
+
+        getDistCellValue(row, cycleNum) {
+          if (!row) return "-";
+          const cStr = String(cycleNum);
+          const val = (row.cycle_vals && row.cycle_vals[cStr]) || 0;
+          if (this.distViewMode === 'pct') {
+            const pctObra = (row.cycle_pcts_obra && row.cycle_pcts_obra[cStr]) || 0;
+            if (pctObra > 0) return pctObra.toFixed(2) + '%';
+            const tot = this.replanResult?.total_budget || 1.0;
+            return val > 0 ? ((val / tot) * 100).toFixed(2) + '%' : '-';
+          } else if (this.distViewMode === 'pct_service') {
+            const pctServ = (row.cycle_pcts && row.cycle_pcts[cStr]) || 0;
+            if (pctServ > 0) return pctServ.toFixed(2) + '%';
+            const alloc = row.allocated_val || 0;
+            return (alloc > 0 && val > 0) ? ((val / alloc) * 100).toFixed(2) + '%' : '-';
+          } else {
+            return val > 0 ? this.formatCurrency(val) : '-';
+          }
+        },
+
         get filteredReplanRows() {
-          let allRows = (this.replanResult?.tab_replanejado || []).filter(r => r.level > 1);
+          const allRows = (this.replanResult?.tab_replanejado || []).filter(r => r.level > 1);
           let rows = allRows;
-          if (this.levelFilterReplan > 0) {
+          if (this.levelFilterReplan > 0 && this.levelFilterReplan < 5) {
             rows = rows.filter(r => r.level <= this.levelFilterReplan);
+          } else if (this.levelFilterReplan === 5) {
+            // Level 5 mode: show Level 2-5, plus Level 6 only for expanded Level 5s
+            rows = rows.filter(r => r.level <= 5 || (r.level === 6 && this.expandedReplanL5[r.parent_code]));
           }
           if (this.searchReplan.trim()) {
             const q = this.searchReplan.toLowerCase();

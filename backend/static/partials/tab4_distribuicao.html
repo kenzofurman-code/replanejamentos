@@ -178,11 +178,7 @@
                   <template x-for="c in replanResult?.cycles" :key="c.num">
                     <td class="py-0.5 px-2 text-right border-b border-r border-slate-200 transition-colors" 
                         :class="row.level === 6 && hasDistCycleVal(row, c.num) ? 'cell-l6-has-val' : ''"
-                        x-text="distViewMode === 'pct' ? 
-                                ((row.cycle_pcts_obra && row.cycle_pcts_obra[String(c.num)] > 0) ? (row.cycle_pcts_obra[String(c.num)].toFixed(2) + '%') : (((row.cycle_vals && row.cycle_vals[String(c.num)] > 0)) ? (((row.cycle_vals[String(c.num)]) / replanResult?.total_budget) * 100).toFixed(2) + '%' : '-')) : 
-                                (distViewMode === 'pct_service' ? 
-                                ((row.cycle_pcts && row.cycle_pcts[String(c.num)] > 0) ? (row.cycle_pcts[String(c.num)].toFixed(2) + '%') : (row.allocated_val > 0 && (row.cycle_vals && row.cycle_vals[String(c.num)] > 0) ? (((row.cycle_vals[String(c.num)]) / row.allocated_val) * 100).toFixed(2) + '%' : '-')) : 
-                                ((row.cycle_vals && row.cycle_vals[String(c.num)] > 0) ? formatCurrency(row.cycle_vals[String(c.num)]) : '-'))">
+                        x-text="getDistCellValue(row, c.num)">
                     </td>
                   </template>
 
