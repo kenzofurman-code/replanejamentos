@@ -13,6 +13,14 @@
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
+            <!-- Botão Importar Dados -->
+            <button 
+              @click="openCurvasImportModal()" 
+              class="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg transition shadow-xs">
+              <i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i>
+              <span>Importar Dados</span>
+            </button>
+
             <!-- Botão de Configuração de Prazos e Insumos -->
             <button 
               @click="openConfigCurvasModal()" 

@@ -324,4 +324,131 @@ def test_curvas_config_all_eap_levels_excel():
     assert parsed["01.01.01.01"]["payment_terms"] == "15"
 
 
+def test_fisico_diario_and_date_helpers():
+    from backend.app.services.competence_finance_engine import (
+        somar_dias_iso, diferenca_dias, mes_competencia_mo, data_pagamento_mo,
+        somar_um_ano_iso, fisico_diario
+    )
+
+    # Date helpers
+    assert somar_dias_iso("2026-03-20", 5) == "2026-03-25"
+    assert somar_dias_iso("2026-03-20", -5) == "2026-03-15"
+    assert diferenca_dias("2026-01-01", "2026-01-10") == 9
+    assert mes_competencia_mo("2026-03-20", 20) == "2026-03"
+    assert mes_competencia_mo("2026-03-21", 20) == "2026-04"
+    assert data_pagamento_mo("2026-03", 5) == "2026-04-05"
+    assert somar_um_ano_iso("2024-02-29") == "2025-02-28"
+
+    # Físico diário com pontos mensais
+    pontos = [
+        {"data": "2026-01-01", "previsto": 0.4},
+        {"data": "2026-02-01", "previsto": 0.6}
+    ]
+    dias = fisico_diario("2026-01-01", "2026-02-28", pontos)
+    assert len(dias) == 31 + 28
+    assert abs(sum(d["peso"] for d in dias) - 1.0) < 0.0001
+
+
+def test_material_and_labor_advanced_flows():
+    from backend.app.services.competence_finance_engine import (
+        material_com_fluxos, mao_de_obra_com_fluxos
+    )
+
+    # Test Material: Proporcional com antecedência de 10 dias e prazo de 28 dias
+    mat_res = material_com_fluxos(
+        custo=10000.0,
+        data_inicio="2026-02-01",
+        data_fim="2026-02-28",
+        dias_antecedencia=10,
+        tipo_pagamento="DIAS",
+        prazo_dias=28
+    )
+    assert len(mat_res["eventos"]) > 0
+    assert len(mat_res["fluxos"]) > 0
+    # Chegada antes da execução (em Jan/26) e pagamento em Fev/26
+    ev = mat_res["eventos"][0]
+    assert ev["mesCompetencia"] == "2026-01"
+    assert ev["mesFinanceiro"] == "2026-02"
+    assert abs(sum(e["valor"] for e in mat_res["eventos"]) - 10000.0) < 1.0
+
+    # Test Mão de Obra com Retenção Técnica de 5%
+    mo_res = mao_de_obra_com_fluxos(
+        custo=20000.0,
+        data_inicio="2026-03-01",
+        data_fim="2026-03-31",
+        dia_corte_mo=20,
+        dia_pagamento_mo=5,
+        retencao_percentual=5.0,
+        data_liberacao_retencao="2027-03-31"
+    )
+    assert len(mo_res["eventos"]) >= 2
+    # Deve ter eventos de retenção no financeiro de 2027-03 somando 5% de 20.000 = 1000.0
+    ret_evs = [e for e in mo_res["eventos"] if e.get("retencao")]
+    assert len(ret_evs) > 0
+    assert all(e["mesFinanceiro"] == "2027-03" for e in ret_evs)
+    assert abs(sum(e["valor"] for e in ret_evs) - 1000.0) < 0.1
+
+
+def test_projetar_realizado_alerts_and_balance():
+    from backend.app.services.competence_finance_engine import projetar_realizado
+
+    etapas = [
+        {
+            "codigo_etapa": "01.01.001",
+            "nome": "Estrutura Concreto",
+            "custo_material": 60000.0,
+            "custo_mao_obra": 40000.0,
+            "custo_total": 100000.0,
+            "data_inicio": "2026-01-01",
+            "data_fim": "2026-04-30",
+            "pontos_mensais": [
+                {"data": "2026-01-01", "previsto": 0.25},
+                {"data": "2026-02-01", "previsto": 0.25},
+                {"data": "2026-03-01", "previsto": 0.25},
+                {"data": "2026-04-01", "previsto": 0.25},
+            ]
+        },
+        {
+            "codigo_etapa": "01.01.002",
+            "nome": "Alvenaria",
+            "custo_material": 30000.0,
+            "custo_mao_obra": 20000.0,
+            "custo_total": 50000.0,
+            "data_inicio": "2026-01-01",
+            "data_fim": "2026-01-31",
+            "pontos_mensais": [
+                {"data": "2026-01-01", "previsto": 1.0}
+            ]
+        }
+    ]
+
+    # Incorrido com saldo excedente em Alvenaria (R$ 55.000 > R$ 50.000)
+    realizado = [
+        {"codigo_etapa": "01.01.001", "data": "2026-01-15", "valor": 20000.0, "tipo": "MATERIAL", "ap": 101},
+        {"codigo_etapa": "01.01.002", "data": "2026-01-20", "valor": 55000.0, "tipo": "MATERIAL", "ap": 102}
+    ]
+
+    # Pagamentos
+    pagamentos = {
+        "101": [{"parcela": "1", "vencimento": "2026-01-28", "valor": 20000.0, "pago": 15000.0, "saldo": 5000.0}]
+    }
+
+    proj = projetar_realizado(
+        etapas=etapas,
+        corte="2026-01",
+        realizado=realizado,
+        pagamentos=pagamentos
+    )
+
+    kpis = proj["kpis"]
+    assert kpis["realizadoAteCorte"] == 75000.0
+    assert kpis["realizadoFinanceiroAteCorte"] == 15000.0
+    assert kpis["abertoVencido"] == 5000.0
+    assert kpis["excedente"] == 5000.0  # Alvenaria estourou 5000
+
+    alvenaria_res = next(r for r in proj["etapas"] if r["codigo_etapa"] == "01.01.002")
+    assert alvenaria_res["alerta"] == "excedente"
+
+
+
 

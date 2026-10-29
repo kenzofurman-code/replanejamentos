@@ -1,0 +1,227 @@
+<!-- MODAL DE IMPORTAÇÃO DE DADOS DAS CURVAS (CUSTO PROJETADO, INCORRIDO, CONCILIAÇÃO FINANCEIRA) -->
+<div 
+  x-show="showCurvasImportModal" 
+  x-cloak
+  class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6"
+  @keydown.escape.window="showCurvasImportModal = false">
+  
+  <div 
+    @click.away="showCurvasImportModal = false"
+    class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    
+    <!-- Modal Header -->
+    <div class="px-6 py-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-white shrink-0">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-xl bg-blue-600/30 border border-blue-500/40 flex items-center justify-center text-blue-400">
+          <i data-lucide="upload-cloud" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h3 class="font-bold text-sm tracking-wide">Importação de Dados das Curvas Físico-Financeiras</h3>
+          <p class="text-[11px] text-slate-400">Carregue o Custo Projetado (Orçamento Atualizado), Incorrido (Apropriações) e Conciliação Financeira (Mega).</p>
+        </div>
+      </div>
+
+      <button 
+        @click="showCurvasImportModal = false" 
+        class="w-8 h-8 rounded-lg hover:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <!-- Modal Sub-Tabs -->
+    <div class="px-6 pt-3 bg-slate-50 border-b border-slate-200 flex space-x-2 shrink-0">
+      <button 
+        @click="curvasImportTab = 'custo_projetado'"
+        :class="curvasImportTab === 'custo_projetado' ? 'border-blue-600 text-blue-600 font-bold bg-white' : 'border-transparent text-slate-500 hover:text-slate-800'"
+        class="px-4 py-2 border-b-2 text-xs transition flex items-center space-x-1.5 rounded-t-lg">
+        <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+        <span>1. Custo Projetado (Orçamento)</span>
+      </button>
+      <button 
+        @click="curvasImportTab = 'incorrido'"
+        :class="curvasImportTab === 'incorrido' ? 'border-blue-600 text-blue-600 font-bold bg-white' : 'border-transparent text-slate-500 hover:text-slate-800'"
+        class="px-4 py-2 border-b-2 text-xs transition flex items-center space-x-1.5 rounded-t-lg">
+        <i data-lucide="receipt" class="w-3.5 h-3.5"></i>
+        <span>2. Incorrido (Análise Realizado)</span>
+      </button>
+      <button 
+        @click="curvasImportTab = 'conciliacao'"
+        :class="curvasImportTab === 'conciliacao' ? 'border-blue-600 text-blue-600 font-bold bg-white' : 'border-transparent text-slate-500 hover:text-slate-800'"
+        class="px-4 py-2 border-b-2 text-xs transition flex items-center space-x-1.5 rounded-t-lg">
+        <i data-lucide="landmark" class="w-3.5 h-3.5"></i>
+        <span>3. Conciliação Financeira (Mega)</span>
+      </button>
+    </div>
+
+    <!-- Modal Content Body -->
+    <div class="p-6 overflow-y-auto flex-1 text-xs space-y-4">
+      
+      <!-- TAB 1: CUSTO PROJETADO -->
+      <div x-show="curvasImportTab === 'custo_projetado'" class="space-y-4">
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start space-x-3">
+          <i data-lucide="info" class="w-5 h-5 text-blue-600 shrink-0 mt-0.5"></i>
+          <div class="text-[11px] text-blue-900 leading-relaxed">
+            <span class="font-bold">O Custo Projetado substitui a base do orçamento</span> como referência financeira da obra.
+            O motor classifica automaticamente cada item em <strong>Material</strong> ou <strong>Mão de Obra</strong> (código <code class="bg-blue-100 px-1 py-0.5 rounded">SE</code>, prefixo <code class="bg-blue-100 px-1 py-0.5 rounded">MO </code>) e agrupa nas etapas Nível 5 do cronograma.
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+          <div>
+            <span class="font-semibold text-slate-800">Modelo Oficial Excel (.xlsx)</span>
+            <p class="text-[11px] text-slate-500">Planilha pré-formatada com colunas: Código Estruturado, Descrição, Nível, Tipo (SE/MT) e Custo Projetado.</p>
+          </div>
+          <button 
+            @click="downloadCurvasTemplateFile('custo-projetado')"
+            class="flex items-center space-x-1.5 bg-white hover:bg-slate-100 text-blue-700 font-semibold px-3 py-1.5 rounded-lg border border-slate-300 shadow-2xs transition">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <span>Baixar Modelo</span>
+          </button>
+        </div>
+
+        <!-- Dropzone -->
+        <div 
+          class="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-6 text-center bg-slate-50/50 hover:bg-blue-50/20 transition cursor-pointer relative"
+          @dragover.prevent=""
+          @drop.prevent="handleFileUploadCurvas($event, 'custo_projetado')">
+          <input 
+            type="file" 
+            accept=".xlsx" 
+            class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+            @change="handleFileUploadCurvas($event, 'custo_projetado')">
+          <div class="flex flex-col items-center justify-center space-y-2">
+            <div class="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+              <i data-lucide="file-up" class="w-6 h-6"></i>
+            </div>
+            <div class="text-sm font-semibold text-slate-700">Clique para selecionar ou arraste o arquivo .xlsx aqui</div>
+            <div class="text-[11px] text-slate-400">Suporta relatórios exportados do Mega e planilhas de Custo Projetado</div>
+          </div>
+        </div>
+
+        <!-- Status Card -->
+        <div x-show="curvasDados?.custo_projetado_info?.tem_custo_projetado" class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between">
+          <div class="flex items-center space-x-2 text-emerald-800">
+            <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i>
+            <span>Custo Projetado ativo na obra: <strong x-text="formatCurrency(curvasDados?.custo_projetado_info?.total_custo_projetado)"></strong></span>
+          </div>
+          <span class="text-[10px] px-2 py-0.5 bg-emerald-200 text-emerald-900 rounded-full font-bold">Ativo</span>
+        </div>
+      </div>
+
+      <!-- TAB 2: INCORRIDO (REALIZADO) -->
+      <div x-show="curvasImportTab === 'incorrido'" class="space-y-4">
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start space-x-3">
+          <i data-lucide="info" class="w-5 h-5 text-amber-600 shrink-0 mt-0.5"></i>
+          <div class="text-[11px] text-amber-900 leading-relaxed">
+            <span class="font-bold">O Incorrido / Análise do Realizado</span> traz as apropriações e notas fiscais emitidas até a data de corte.
+            A competência pré-corte utiliza a data do documento para compor o realizado histórico contábil.
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+          <div>
+            <span class="font-semibold text-slate-800">Modelo Oficial de Incorrido (.xlsx)</span>
+            <p class="text-[11px] text-slate-500">Colunas: Código Estruturado, Data Documento, Número AP, Descrição, Valor Apropriação.</p>
+          </div>
+          <button 
+            @click="downloadCurvasTemplateFile('incorrido')"
+            class="flex items-center space-x-1.5 bg-white hover:bg-slate-100 text-amber-700 font-semibold px-3 py-1.5 rounded-lg border border-slate-300 shadow-2xs transition">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <span>Baixar Modelo</span>
+          </button>
+        </div>
+
+        <div 
+          class="border-2 border-dashed border-slate-300 hover:border-amber-500 rounded-2xl p-6 text-center bg-slate-50/50 hover:bg-amber-50/20 transition cursor-pointer relative"
+          @dragover.prevent=""
+          @drop.prevent="handleFileUploadCurvas($event, 'incorrido')">
+          <input 
+            type="file" 
+            accept=".xlsx" 
+            class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+            @change="handleFileUploadCurvas($event, 'incorrido')">
+          <div class="flex flex-col items-center justify-center space-y-2">
+            <div class="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
+              <i data-lucide="file-up" class="w-6 h-6"></i>
+            </div>
+            <div class="text-sm font-semibold text-slate-700">Clique para selecionar ou arraste o arquivo .xlsx aqui</div>
+            <div class="text-[11px] text-slate-400">Relatório Análise do Realizado do Mega</div>
+          </div>
+        </div>
+
+        <div x-show="curvasDados?.tem_incorrido" class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between">
+          <div class="flex items-center space-x-2 text-emerald-800">
+            <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i>
+            <span>Lançamentos de Incorrido carregados e ativos no projeto</span>
+          </div>
+          <span class="text-[10px] px-2 py-0.5 bg-emerald-200 text-emerald-900 rounded-full font-bold">Ativo</span>
+        </div>
+      </div>
+
+      <!-- TAB 3: CONCILIAÇÃO FINANCEIRA (MEGA) -->
+      <div x-show="curvasImportTab === 'conciliacao'" class="space-y-4">
+        <div class="bg-teal-50 border border-teal-200 rounded-xl p-4 flex items-start space-x-3">
+          <i data-lucide="info" class="w-5 h-5 text-teal-600 shrink-0 mt-0.5"></i>
+          <div class="text-[11px] text-teal-900 leading-relaxed">
+            <span class="font-bold">A Conciliação Financeira</span> traz os pagamentos realizados por AP e vencimento.
+            O valor pago até o corte compõe o realizado financeiro exato. Parcelas vencidas com saldo em aberto são deslocadas para o mês seguinte ao corte.
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+          <div>
+            <span class="font-semibold text-slate-800">Modelo Oficial de Conciliação (.xlsx)</span>
+            <p class="text-[11px] text-slate-500">Colunas: Número AP, Parcela, Vencimento, Valor Rateado, Pagamentos, Saldo a Pagar, Código Estruturado.</p>
+          </div>
+          <button 
+            @click="downloadCurvasTemplateFile('conciliacao')"
+            class="flex items-center space-x-1.5 bg-white hover:bg-slate-100 text-teal-700 font-semibold px-3 py-1.5 rounded-lg border border-slate-300 shadow-2xs transition">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <span>Baixar Modelo</span>
+          </button>
+        </div>
+
+        <div 
+          class="border-2 border-dashed border-slate-300 hover:border-teal-500 rounded-2xl p-6 text-center bg-slate-50/50 hover:bg-teal-50/20 transition cursor-pointer relative"
+          @dragover.prevent=""
+          @drop.prevent="handleFileUploadCurvas($event, 'conciliacao')">
+          <input 
+            type="file" 
+            accept=".xlsx" 
+            class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+            @change="handleFileUploadCurvas($event, 'conciliacao')">
+          <div class="flex flex-col items-center justify-center space-y-2">
+            <div class="w-12 h-12 rounded-full bg-teal-100 text-teal-600 flex items-center justify-center">
+              <i data-lucide="file-up" class="w-6 h-6"></i>
+            </div>
+            <div class="text-sm font-semibold text-slate-700">Clique para selecionar ou arraste o arquivo .xlsx aqui</div>
+            <div class="text-[11px] text-slate-400">Relatório Conciliação Financeira exportado do Mega</div>
+          </div>
+        </div>
+
+        <div x-show="curvasDados?.tem_pagamentos" class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between">
+          <div class="flex items-center space-x-2 text-emerald-800">
+            <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i>
+            <span>Planilha de Conciliação Financeira ativa no projeto</span>
+          </div>
+          <span class="text-[10px] px-2 py-0.5 bg-emerald-200 text-emerald-900 rounded-full font-bold">Ativo</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
+      <div class="text-[11px] text-slate-500 flex items-center space-x-1.5">
+        <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
+        <span>Os cálculos são atualizados imediatamente após o upload.</span>
+      </div>
+      <button 
+        @click="showCurvasImportModal = false" 
+        class="bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs px-4 py-1.5 rounded-lg transition">
+        Fechar
+      </button>
+    </div>
+
+  </div>
+</div>

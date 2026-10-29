@@ -1,0 +1,137 @@
+<!-- MODAL DE VÍNCULOS MANUAIS (CUSTO PROJETADO FORA DA EAP -> ETAPA DO CRONOGRAMA) -->
+<div 
+  x-show="showCurvasVinculosModal" 
+  x-cloak
+  class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6"
+  @keydown.escape.window="showCurvasVinculosModal = false">
+  
+  <div 
+    @click.away="showCurvasVinculosModal = false"
+    class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    
+    <!-- Modal Header -->
+    <div class="px-6 py-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-white shrink-0">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+          <i data-lucide="link-2" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h3 class="font-bold text-sm tracking-wide">Vínculos Manuais: Custo Projetado x Etapa do Cronograma</h3>
+          <p class="text-[11px] text-slate-400">Vincule custos que não possuem código na EAP para que sejam distribuídos no cronograma de uma etapa Nível 5.</p>
+        </div>
+      </div>
+
+      <button 
+        @click="showCurvasVinculosModal = false" 
+        class="w-8 h-8 rounded-lg hover:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="p-6 overflow-y-auto flex-1 text-xs space-y-4">
+      
+      <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-start space-x-3">
+        <i data-lucide="help-circle" class="w-5 h-5 text-indigo-600 shrink-0 mt-0.5"></i>
+        <div class="text-[11px] text-indigo-900 leading-relaxed">
+          Itens listados abaixo foram encontrados no Custo Projetado mas <strong>não possuem uma etapa nível 5 correspondente no cronograma</strong>.
+          Ao vincular uma etapa de destino, o custo projetado será somado à etapa escolhida e seguirá as regras de física e desembolso dela.
+        </div>
+      </div>
+
+      <!-- Novo Vínculo Form -->
+      <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row items-center gap-2">
+        <div class="flex-1 w-full">
+          <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Código de Origem</label>
+          <input 
+            type="text" 
+            x-model="novoVinculoOrigem" 
+            placeholder="Ex: 01.99.999 ou código Mega..."
+            class="w-full bg-white border border-slate-300 rounded px-2.5 py-1 text-xs outline-none focus:border-indigo-500">
+        </div>
+        <div class="flex-1 w-full">
+          <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Etapa de Destino (Nível 5)</label>
+          <select 
+            x-model="novoVinculoDestino" 
+            class="w-full bg-white border border-slate-300 rounded px-2.5 py-1 text-xs outline-none focus:border-indigo-500">
+            <option value="">Selecione uma etapa N5...</option>
+            <template x-for="et in (curvasDados?.etapas || [])" :key="et.codigo_etapa">
+              <option :value="et.codigo_etapa" x-text="et.codigo_etapa + ' - ' + et.nome"></option>
+            </template>
+          </select>
+        </div>
+        <div class="sm:self-end">
+          <button 
+            @click="salvarNovoVinculo()" 
+            class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-1.5 rounded-lg transition text-xs shadow-2xs whitespace-nowrap">
+            Adicionar Vínculo
+          </button>
+        </div>
+      </div>
+
+      <!-- Tabela de Itens Fora do Cronograma -->
+      <div class="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+        <div class="px-4 py-2 bg-slate-100 border-b border-slate-200 flex items-center justify-between font-bold text-slate-700 text-[11px]">
+          <span>Itens do Custo Projetado Fora do Cronograma</span>
+          <span class="text-slate-500 font-normal" x-text="(curvasDados?.custo_projetado_info?.projetado_fora || []).length + ' itens encontrados'"></span>
+        </div>
+        
+        <table class="w-full text-left text-xs border-collapse">
+          <thead class="bg-slate-50 text-slate-500 border-b border-slate-200 text-[10px] font-bold uppercase">
+            <tr>
+              <th class="p-2.5 pl-4">Código Origem</th>
+              <th class="p-2.5">Descrição</th>
+              <th class="p-2.5 text-right">Valor Projetado</th>
+              <th class="p-2.5">Etapa Destino Vinculada</th>
+              <th class="p-2.5 text-center pr-4">Ação</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <template x-for="item in (curvasDados?.custo_projetado_info?.projetado_fora || [])" :key="item.codigo">
+              <tr class="hover:bg-slate-50/70">
+                <td class="p-2.5 pl-4 font-mono font-bold text-slate-700" x-text="item.codigo"></td>
+                <td class="p-2.5 text-slate-600" x-text="item.descricao || '—'"></td>
+                <td class="p-2.5 text-right font-bold text-slate-800" x-text="formatCurrency(item.total)"></td>
+                <td class="p-2.5">
+                  <select 
+                    @change="vincularItemFora(item.codigo, $event.target.value)"
+                    class="bg-white border border-slate-300 rounded px-2 py-0.5 text-xs text-slate-700 outline-none max-w-xs truncate">
+                    <option value="">Não vinculado (Fora das curvas)</option>
+                    <template x-for="et in (curvasDados?.etapas || [])" :key="et.codigo_etapa">
+                      <option :value="et.codigo_etapa" :selected="curvasDados?.vinculos?.[item.codigo] === et.codigo_etapa" x-text="et.codigo_etapa + ' - ' + et.nome"></option>
+                    </template>
+                  </select>
+                </td>
+                <td class="p-2.5 text-center pr-4">
+                  <button 
+                    x-show="curvasDados?.vinculos?.[item.codigo]"
+                    @click="desvincularItem(item.codigo)"
+                    title="Remover vínculo"
+                    class="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition">
+                    <i data-lucide="unlink" class="w-3.5 h-3.5"></i>
+                  </button>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="!(curvasDados?.custo_projetado_info?.projetado_fora || []).length">
+              <td colspan="5" class="p-6 text-center text-slate-400 italic">
+                Nenhum item do Custo Projetado está fora do cronograma. Todas as etapas coincidem perfeitamente com a EAP!
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-end shrink-0">
+      <button 
+        @click="showCurvasVinculosModal = false" 
+        class="bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs px-4 py-1.5 rounded-lg transition">
+        Concluído
+      </button>
+    </div>
+
+  </div>
+</div>

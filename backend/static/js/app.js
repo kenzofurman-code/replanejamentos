@@ -99,6 +99,33 @@
         curvasLevelFilter: 0,
         collapsedCurvasNodes: {},
         comparisonChartInstance: null,
+        tripleChartInstance: null,
+        realizadoProjecaoChartInstance: null,
+
+        // Curvas Avançadas (Custo Projetado, Incorrido, Conciliação, Realizado + Projeção)
+        showCurvasImportModal: false,
+        curvasImportTab: 'custo_projetado',
+        showCurvasVinculosModal: false,
+        curvasSubView: 'sintetica',
+        curvasCorte: new Date().toISOString().slice(0, 7),
+        curvasDados: null,
+        curvasRealizadoData: null,
+        isLoadingCurvasDados: false,
+        isLoadingRealizado: false,
+        novoVinculoOrigem: '',
+        novoVinculoDestino: '',
+        searchAnalitica: '',
+        filtroTipoAnalitica: 'TODOS',
+        configCurvasTab: 'etapas',
+        curvasParamsObra: {
+          dias_antecedencia_padrao: 10,
+          prazo_pagamento_padrao_dias: 28,
+          dia_corte_medicao_mo: 20,
+          dia_pagamento_mo: 5,
+          retencao_mo_ativa: false,
+          retencao_mo_percentual: 5.0,
+          data_fim_obra: ''
+        },
 
         // Modal Redistribuição de Saldo (Nível 5)
         showReplanWeightModal: false,
@@ -2282,6 +2309,389 @@
             event.target.value = "";
           }
         },
+
+        // --- Curvas Avançadas: Custo Projetado, Incorrido, Pagamentos & Realizado + Projeção ---
+
+        openCurvasImportModal() {
+          this.showCurvasImportModal = true;
+          this.carregarCurvasDados();
+          this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+        },
+
+        openCurvasVinculosModal() {
+          this.showCurvasVinculosModal = true;
+          this.novoVinculoOrigem = '';
+          this.novoVinculoDestino = '';
+          this.carregarCurvasDados();
+          this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+        },
+
+        downloadCurvasTemplateFile(type) {
+          window.location.href = `/api/replan/${this.selectedProjectId}/curvas-templates/${type}`;
+        },
+
+        async handleFileUploadCurvas(event, type) {
+          let file = null;
+          if (event.target && event.target.files && event.target.files[0]) {
+            file = event.target.files[0];
+          } else if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]) {
+            file = event.dataTransfer.files[0];
+          }
+          if (!file) return;
+
+          const endpointMap = {
+            'custo_projetado': `/api/replan/${this.selectedProjectId}/curvas-importar-custo-projetado`,
+            'incorrido': `/api/replan/${this.selectedProjectId}/curvas-importar-incorrido`,
+            'conciliacao': `/api/replan/${this.selectedProjectId}/curvas-importar-pagamentos`
+          };
+
+          const url = endpointMap[type];
+          if (!url) return;
+
+          const formData = new FormData();
+          formData.append("file", file);
+
+          try {
+            const resp = await fetch(url, { method: "POST", body: formData });
+            if (!resp.ok) {
+              const err = await resp.json().catch(() => ({}));
+              alert(err.detail || "Erro ao importar planilha.");
+              return;
+            }
+            const res = await resp.json();
+            alert(res.message || "Planilha importada com sucesso!");
+            await this.carregarCurvasDados();
+            if (this.curvasSubView === 'realizado') {
+              await this.carregarRealizadoProjecao();
+            }
+            await this.runSimulation();
+          } catch (e) {
+            console.error(e);
+            alert("Erro ao enviar arquivo.");
+          } finally {
+            if (event.target && event.target.value) {
+              event.target.value = "";
+            }
+          }
+        },
+
+        async carregarCurvasDados() {
+          this.isLoadingCurvasDados = true;
+          try {
+            const resp = await fetch(`/api/replan/${this.selectedProjectId}/curvas-dados`);
+            if (resp.ok) {
+              this.curvasDados = await resp.json();
+              if (this.curvasDados.parametros_obra) {
+                this.curvasParamsObra = Object.assign({}, this.curvasParamsObra, this.curvasDados.parametros_obra);
+              }
+            }
+          } catch (e) {
+            console.error("Erro ao carregar curvas-dados:", e);
+          } finally {
+            this.isLoadingCurvasDados = false;
+            this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+          }
+        },
+
+        async carregarRealizadoProjecao() {
+          this.isLoadingRealizado = true;
+          try {
+            const corte = this.curvasCorte || '';
+            const resp = await fetch(`/api/replan/${this.selectedProjectId}/curvas-realizado?corte=${encodeURIComponent(corte)}`);
+            if (resp.ok) {
+              this.curvasRealizadoData = await resp.json();
+              this.$nextTick(() => {
+                this.renderChartRealizadoProjecao();
+                if (window.lucide) lucide.createIcons();
+              });
+            }
+          } catch (e) {
+            console.error("Erro ao carregar curvas-realizado:", e);
+          } finally {
+            this.isLoadingRealizado = false;
+          }
+        },
+
+        async salvarNovoVinculo() {
+          if (!this.novoVinculoOrigem.trim()) {
+            alert("Informe o código de origem.");
+            return;
+          }
+          try {
+            const resp = await fetch(`/api/replan/${this.selectedProjectId}/curvas-vinculos`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                codigo_origem: this.novoVinculoOrigem.trim(),
+                codigo_destino: this.novoVinculoDestino ? this.novoVinculoDestino.trim() : null,
+                remover: false
+              })
+            });
+            if (resp.ok) {
+              this.novoVinculoOrigem = '';
+              this.novoVinculoDestino = '';
+              await this.carregarCurvasDados();
+              if (this.curvasSubView === 'realizado') {
+                await this.carregarRealizadoProjecao();
+              }
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        },
+
+        async vincularItemFora(origem, destino) {
+          if (!origem) return;
+          try {
+            const resp = await fetch(`/api/replan/${this.selectedProjectId}/curvas-vinculos`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                codigo_origem: origem,
+                codigo_destino: destino || null,
+                remover: !destino
+              })
+            });
+            if (resp.ok) {
+              await this.carregarCurvasDados();
+              if (this.curvasSubView === 'realizado') {
+                await this.carregarRealizadoProjecao();
+              }
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        },
+
+        async desvincularItem(origem) {
+          await this.vincularItemFora(origem, null);
+        },
+
+        async promptSalvarVersaoCurvas() {
+          const nome = prompt("Nome para a versão congelada das curvas:", `Versão ${new Date().toLocaleDateString('pt-BR')}`);
+          if (nome === null) return;
+          try {
+            const resp = await fetch(`/api/replan/${this.selectedProjectId}/curvas-versoes`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ nome: nome.trim() || undefined })
+            });
+            if (resp.ok) {
+              alert("Versão das curvas salva com sucesso!");
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        },
+
+        isNivel1Considerado(codigo) {
+          const excl = this.curvasParamsObra?.niveis1_excluidos || [];
+          return !excl.includes(String(codigo));
+        },
+
+        toggleNivel1Considerado(codigo) {
+          const sCod = String(codigo);
+          let excl = this.curvasParamsObra.niveis1_excluidos || [];
+          if (excl.includes(sCod)) {
+            excl = excl.filter(x => x !== sCod);
+          } else {
+            excl.push(sCod);
+          }
+          this.curvasParamsObra.niveis1_excluidos = excl;
+        },
+
+        getFilteredFluxos() {
+          const etapas = this.curvasDados?.etapas || [];
+          const q = (this.searchAnalitica || '').trim().toLowerCase();
+          const tipoFiltro = this.filtroTipoAnalitica || 'TODOS';
+          let allFluxos = [];
+          etapas.forEach(et => {
+            (et.fluxos || []).forEach(fl => {
+              allFluxos.push(Object.assign({}, fl, { codigo_etapa: et.codigo_etapa, nome: et.nome }));
+            });
+          });
+          if (tipoFiltro !== 'TODOS') {
+            allFluxos = allFluxos.filter(fl => fl.tipo === tipoFiltro);
+          }
+          if (q) {
+            allFluxos = allFluxos.filter(fl => 
+              (fl.codigo_etapa && fl.codigo_etapa.toLowerCase().includes(q)) ||
+              (fl.nome && fl.nome.toLowerCase().includes(q)) ||
+              (fl.comp && fl.comp.toLowerCase().includes(q)) ||
+              (fl.fin && fl.fin.toLowerCase().includes(q))
+            );
+          }
+          return allFluxos;
+        },
+
+        renderCurvasChart() {
+          const canvas = document.getElementById("curvasTripleChartCanvas");
+          if (!canvas) return;
+          const existing = Chart.getChart(canvas);
+          if (existing) {
+            try { existing.destroy(); } catch (e) {}
+          }
+          if (this.tripleChartInstance) {
+            try { this.tripleChartInstance.destroy(); } catch (e) {}
+            this.tripleChartInstance = null;
+          }
+
+          const sComp = this.curvasDados?.s_curves_comparison || this.replanResult?.s_curves_comparison;
+          if (!sComp) return;
+
+          const labels = sComp.labels || [];
+          const compData = sComp.comp_accum_pcts || [];
+          const finData = sComp.fin_accum_pcts || [];
+          const sc = this.replanResult?.s_curve;
+          const fisicoData = sc?.replan_accum_pcts || [];
+
+          this.tripleChartInstance = new Chart(canvas, {
+            type: "line",
+            data: {
+              labels: labels,
+              datasets: [
+                {
+                  label: "Físico Produzido (%)",
+                  data: fisicoData,
+                  borderColor: "#6366f1",
+                  borderWidth: 2,
+                  pointRadius: 2.5,
+                  tension: 0.2
+                },
+                {
+                  label: "Competência Contábil (%)",
+                  data: compData,
+                  borderColor: "#2563eb",
+                  borderWidth: 2.5,
+                  pointRadius: 3,
+                  tension: 0.2
+                },
+                {
+                  label: "Financeiro / Desembolso (%)",
+                  data: finData,
+                  borderColor: "#0d9488",
+                  borderWidth: 2.5,
+                  pointRadius: 3,
+                  tension: 0.2
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              interaction: { mode: "index", intersect: false },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  max: 100,
+                  ticks: { callback: v => v + "%" },
+                  grid: { color: "#f1f5f9" }
+                },
+                x: {
+                  grid: { display: false }
+                }
+              },
+              plugins: {
+                legend: { position: "top" }
+              }
+            }
+          });
+        },
+
+        renderChartRealizadoProjecao() {
+          const canvas = document.getElementById("chartRealizadoProjecaoCanvas");
+          if (!canvas) return;
+          const existing = Chart.getChart(canvas);
+          if (existing) {
+            try { existing.destroy(); } catch (e) {}
+          }
+          if (this.realizadoProjecaoChartInstance) {
+            try { this.realizadoProjecaoChartInstance.destroy(); } catch (e) {}
+            this.realizadoProjecaoChartInstance = null;
+          }
+
+          const series = this.curvasRealizadoData?.seriesMensal || [];
+          if (!series.length) return;
+
+          const labels = series.map(s => s.mes);
+          const corte = this.curvasRealizadoData?.corte;
+
+          let realCompAcc = 0;
+          let teoricoCompAcc = 0;
+
+          const compRealData = [];
+          const compProjData = [];
+          const teoricoData = [];
+
+          series.forEach(s => {
+            teoricoCompAcc += (s.teoricoCompetenciaMensal || 0);
+            teoricoData.push(teoricoCompAcc);
+
+            if (s.mes <= corte) {
+              realCompAcc += (s.competenciaMensal || 0);
+              compRealData.push(realCompAcc);
+              compProjData.push(null);
+            } else {
+              if (compRealData[compRealData.length - 1] !== null && compProjData[compProjData.length - 1] === null) {
+                compProjData[compProjData.length - 1] = realCompAcc;
+              }
+              realCompAcc += (s.competenciaMensal || 0);
+              compRealData.push(null);
+              compProjData.push(realCompAcc);
+            }
+          });
+
+          this.realizadoProjecaoChartInstance = new Chart(canvas, {
+            type: "line",
+            data: {
+              labels: labels,
+              datasets: [
+                {
+                  label: "Incorrido até Corte (R$)",
+                  data: compRealData,
+                  borderColor: "#2563eb",
+                  borderWidth: 3,
+                  pointRadius: 3,
+                  tension: 0.2
+                },
+                {
+                  label: "Projeção Futura (R$)",
+                  data: compProjData,
+                  borderColor: "#2563eb",
+                  borderDash: [6, 4],
+                  borderWidth: 2.5,
+                  pointRadius: 3,
+                  tension: 0.2
+                },
+                {
+                  label: "Teórico Base (R$)",
+                  data: teoricoData,
+                  borderColor: "#94a3b8",
+                  borderWidth: 1.5,
+                  pointRadius: 2,
+                  tension: 0.2
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              interaction: { mode: "index", intersect: false },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: { callback: v => "R$ " + (v / 1000).toFixed(0) + "k" },
+                  grid: { color: "#f1f5f9" }
+                },
+                x: { grid: { display: false } }
+              },
+              plugins: {
+                legend: { position: "top" }
+              }
+            }
+          });
+        },
+
 
 
 

@@ -49,8 +49,198 @@
       </div>
     </div>
 
-    <!-- Modal Controls & Filter Bar -->
-    <div class="px-6 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0 text-xs">
+    <!-- Modal Sub-Tabs -->
+    <div class="px-6 pt-2 bg-slate-100 border-b border-slate-200 flex space-x-2 shrink-0 text-xs">
+      <button 
+        @click="configCurvasTab = 'etapas'"
+        :class="configCurvasTab === 'etapas' ? 'border-blue-600 text-blue-600 font-bold bg-white' : 'border-transparent text-slate-600 hover:text-slate-900'"
+        class="px-4 py-2 border-b-2 transition flex items-center space-x-1.5 rounded-t-lg">
+        <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+        <span>1. Configuração por Etapa (EAP)</span>
+      </button>
+      <button 
+        @click="configCurvasTab = 'geral'"
+        :class="configCurvasTab === 'geral' ? 'border-blue-600 text-blue-600 font-bold bg-white' : 'border-transparent text-slate-600 hover:text-slate-900'"
+        class="px-4 py-2 border-b-2 transition flex items-center space-x-1.5 rounded-t-lg">
+        <i data-lucide="settings-2" class="w-3.5 h-3.5"></i>
+        <span>2. Parâmetros Gerais da Obra</span>
+      </button>
+      <button 
+        @click="configCurvasTab = 'niveis1'"
+        :class="configCurvasTab === 'niveis1' ? 'border-blue-600 text-blue-600 font-bold bg-white' : 'border-transparent text-slate-600 hover:text-slate-900'"
+        class="px-4 py-2 border-b-2 transition flex items-center space-x-1.5 rounded-t-lg">
+        <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+        <span>3. Capítulos Nível 1 (Exclusões)</span>
+      </button>
+    </div>
+
+    <!-- TAB 2: PARÂMETROS GERAIS DA OBRA -->
+    <div x-show="configCurvasTab === 'geral'" class="p-6 overflow-y-auto flex-1 text-xs space-y-6">
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start space-x-3">
+        <i data-lucide="sliders" class="w-5 h-5 text-blue-600 shrink-0 mt-0.5"></i>
+        <div class="text-[11px] text-blue-900 leading-relaxed">
+          Defina as premissas globais de fluxo financeiro. Etapas que não possuírem regras personalizadas herdarão estes valores automaticamente.
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Card Material Padrão -->
+        <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-2xs">
+          <div class="font-bold text-slate-800 text-xs flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+            <span>Material: Prazos Padrão</span>
+          </div>
+          <div class="space-y-2">
+            <div>
+              <label class="text-[11px] font-semibold text-slate-600 block mb-1">Dias de Antecedência de Chegada em Obra</label>
+              <div class="flex items-center space-x-2">
+                <input 
+                  type="number" 
+                  min="0" 
+                  max="180" 
+                  x-model.number="curvasParamsObra.dias_antecedencia_padrao" 
+                  class="w-24 bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-xs font-bold outline-none focus:border-blue-500">
+                <span class="text-slate-400 text-[11px]">dias antes da execução física</span>
+              </div>
+            </div>
+            <div>
+              <label class="text-[11px] font-semibold text-slate-600 block mb-1">Prazo de Pagamento Padrão</label>
+              <div class="flex items-center space-x-2">
+                <input 
+                  type="number" 
+                  min="0" 
+                  max="180" 
+                  x-model.number="curvasParamsObra.prazo_pagamento_padrao_dias" 
+                  class="w-24 bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-xs font-bold outline-none focus:border-blue-500">
+                <span class="text-slate-400 text-[11px]">dias após a data de entrega/faturamento</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card Mão de Obra Padrão -->
+        <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-2xs">
+          <div class="font-bold text-slate-800 text-xs flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+            <span>Mão de Obra: Ciclo & Pagamento</span>
+          </div>
+          <div class="space-y-2">
+            <div>
+              <label class="text-[11px] font-semibold text-slate-600 block mb-1">Dia de Corte da Medição de MO</label>
+              <div class="flex items-center space-x-2">
+                <input 
+                  type="number" 
+                  min="1" 
+                  max="31" 
+                  x-model.number="curvasParamsObra.dia_corte_medicao_mo" 
+                  class="w-24 bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-xs font-bold outline-none focus:border-blue-500">
+                <span class="text-slate-400 text-[11px]">de 21/(M-1) a 20/M pertence à competência M</span>
+              </div>
+            </div>
+            <div>
+              <label class="text-[11px] font-semibold text-slate-600 block mb-1">Dia de Desembolso Financeiro</label>
+              <div class="flex items-center space-x-2">
+                <input 
+                  type="number" 
+                  min="1" 
+                  max="31" 
+                  x-model.number="curvasParamsObra.dia_pagamento_mo" 
+                  class="w-24 bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-xs font-bold outline-none focus:border-blue-500">
+                <span class="text-slate-400 text-[11px]">pago no dia 5 do mês subsequente (M+1)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card Retenção Técnica -->
+      <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-2xs">
+        <div class="flex items-center justify-between">
+          <div class="font-bold text-slate-800 text-xs flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
+            <span>Retenção Técnica de Mão de Obra</span>
+          </div>
+          <label class="flex items-center space-x-2 cursor-pointer">
+            <input 
+              type="checkbox" 
+              x-model="curvasParamsObra.retencao_mo_ativa"
+              class="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500">
+            <span class="font-bold text-slate-700">Ativar Retenção Técnica</span>
+          </label>
+        </div>
+        <div x-show="curvasParamsObra.retencao_mo_ativa" class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+          <div>
+            <label class="text-[11px] font-semibold text-slate-600 block mb-1">Percentual Retido da Medição (%)</label>
+            <div class="flex items-center space-x-2">
+              <input 
+                type="number" 
+                min="0" 
+                max="50" 
+                step="0.5"
+                x-model.number="curvasParamsObra.retencao_mo_percentual" 
+                class="w-24 bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-xs font-bold outline-none focus:border-blue-500">
+              <span class="text-slate-400 text-[11px]">% retido de cada desembolso</span>
+            </div>
+          </div>
+          <div>
+            <label class="text-[11px] font-semibold text-slate-600 block mb-1">Data Estimada de Término da Obra</label>
+            <input 
+              type="date" 
+              x-model="curvasParamsObra.data_fim_obra" 
+              class="bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-xs outline-none focus:border-blue-500">
+            <span class="text-slate-400 text-[10px] block mt-1">A liberação do saldo retido ocorrerá exatamente 1 ano após esta data.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: CAPÍTULOS NÍVEL 1 (EXCLUSÕES) -->
+    <div x-show="configCurvasTab === 'niveis1'" class="p-6 overflow-y-auto flex-1 text-xs space-y-4">
+      <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-start space-x-3">
+        <i data-lucide="filter" class="w-5 h-5 text-slate-600 shrink-0 mt-0.5"></i>
+        <div class="text-[11px] text-slate-700 leading-relaxed">
+          Marque os capítulos de <strong>Nível 1 do orçamento</strong> que devem compor a Curva de Competência e Curva Financeira.
+          Itens desmarcados (ex: taxas, custos indiretos corporativos) serão ignorados no cálculo das curvas.
+        </div>
+      </div>
+
+      <div class="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead class="bg-slate-100 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200">
+            <tr>
+              <th class="p-3 w-12 text-center">Incluir</th>
+              <th class="p-3 w-20">Capítulo</th>
+              <th class="p-3">Descrição do Capítulo</th>
+              <th class="p-3 text-right">Valor Orçado Total</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <template x-for="n1 in (curvasDados?.niveis1 || [])" :key="n1.codigo">
+              <tr class="hover:bg-slate-50/70">
+                <td class="p-3 text-center">
+                  <input 
+                    type="checkbox" 
+                    :checked="isNivel1Considerado(n1.codigo)"
+                    @change="toggleNivel1Considerado(n1.codigo)"
+                    class="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500">
+                </td>
+                <td class="p-3 font-mono font-bold text-slate-800" x-text="n1.codigo"></td>
+                <td class="p-3 font-semibold text-slate-700" x-text="n1.nome || ('Capítulo ' + n1.codigo)"></td>
+                <td class="p-3 text-right font-bold text-slate-900" x-text="formatCurrency(n1.total)"></td>
+              </tr>
+            </template>
+            <tr x-show="!(curvasDados?.niveis1 || []).length">
+              <td colspan="4" class="p-6 text-center text-slate-400 italic">Nenhum capítulo nível 1 identificado no projeto.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 1: CONFIGURAÇÃO POR ETAPA (EAP) -->
+    <div x-show="configCurvasTab === 'etapas'" class="flex-1 flex flex-col overflow-hidden">
+      <!-- Modal Controls & Filter Bar -->
+      <div class="px-6 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0 text-xs">
       
       <!-- Search Input -->
       <div class="relative w-full sm:w-72">
@@ -337,6 +527,7 @@
       </div>
 
     </div>
+  </div>
 
     <!-- Modal Footer -->
     <div class="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">

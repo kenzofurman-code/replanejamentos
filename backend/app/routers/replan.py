@@ -3,7 +3,7 @@ import datetime
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from ..services.replan_engine import run_replan_calculation
 from ..services.excel_reader import parse_excel_project
 from ..services.exporter import export_replan_to_excel
@@ -17,7 +17,24 @@ from ..services.competence_finance_engine import (
     save_curvas_config,
     generate_curvas_config_excel,
     parse_curvas_config_excel,
-    get_default_stage_configs
+    get_default_stage_configs,
+    calcular_curvas_financeiras,
+    projetar_realizado,
+    load_curvas_data,
+    save_custo_projetado_data,
+    save_incorrido_data,
+    save_pagamentos_data,
+    save_curvas_vinculo_data,
+    salvar_versao_curvas,
+    listar_versoes_curvas,
+    excluir_versao_curvas,
+    parse_custo_projetado_excel,
+    parse_incorrido_excel,
+    parse_conciliacao_financeira_excel,
+    generate_custo_projetado_template,
+    generate_incorrido_template,
+    generate_conciliacao_template,
+    nivel1_do_codigo
 )
 
 
@@ -426,4 +443,374 @@ async def upload_curvas_config(project_id: str, file: UploadFile = File(...)):
     
     save_curvas_config(project_id, parsed_cfgs)
     return {"status": "success", "configs": list(parsed_cfgs.values()), "message": f"{len(parsed_cfgs)} etapas atualizadas!"}
+
+
+# ==============================================================================
+# Rotas Avançadas de Curvas de Competência, Financeiro e Realizado + Projeção
+# ==============================================================================
+
+class CurvasVinculoRequest(BaseModel):
+    codigo_origem: str
+    codigo_destino: Optional[str] = None
+    remover: Optional[bool] = False
+
+
+class CurvasVersaoRequest(BaseModel):
+    nome: Optional[str] = None
+
+
+def _get_project_data(project_id: str) -> Dict[str, Any]:
+    """Recupera os dados completos da obra (cache em memória, banco ou scan)."""
+    if project_id in PROJECT_CACHE:
+        return PROJECT_CACHE[project_id]["data"]
+
+    try:
+        from ..database import load_project_from_db
+        db_proj = load_project_from_db(project_id)
+        if db_proj and db_proj.get("budget_items"):
+            return db_proj
+    except Exception:
+        pass
+
+    projs = scan_piemonte_projects()
+    found = next((p for p in projs if p["id"] == project_id), None)
+    if found and found.get("latest_file"):
+        parsed = parse_excel_project(found["latest_file"]["path"])
+        return parsed
+    return {}
+
+
+def _build_etapas_for_curvas(project_id: str, proj_data: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], Dict[str, Any], Dict[str, Any]]:
+    """
+    Monta a lista de etapas nível 5 prontas para o motor de curvas financeiras.
+    Integra Custo Projetado (se houver), ou Orçamento da EAP como base padrão.
+    Aplica vínculos de códigos externos para etapas do cronograma.
+    """
+    budget_items = proj_data.get("budget_items", {})
+    tasks = proj_data.get("tasks", {})
+    links_by_l5 = proj_data.get("links_by_l5", {})
+    proj_start = str(proj_data.get("start_date") or "2025-01-01")[:10]
+    proj_end = str(proj_data.get("end_date") or "2026-12-31")[:10]
+
+    curvas_dados = load_curvas_data(project_id)
+    custo_proj_salvo = curvas_dados.get("custo_projetado") or {}
+    cp_itens = custo_proj_salvo.get("itens") or {}
+    vinculos = dict(curvas_dados.get("vinculos") or {})
+
+    custos_etapas: Dict[str, Dict[str, float]] = {}
+    projetado_fora = []
+    total_fora = 0.0
+
+    l5_codes_set = set(k for k, v in budget_items.items() if int(v.get("level") or 0) == 5)
+
+    if cp_itens:
+        for cod_origem, c_data in cp_itens.items():
+            dest = vinculos.get(cod_origem, cod_origem)
+            if dest in l5_codes_set:
+                if dest not in custos_etapas:
+                    custos_etapas[dest] = {"material": 0.0, "mao_de_obra": 0.0, "total": 0.0}
+                custos_etapas[dest]["material"] += float(c_data.get("material") or 0.0)
+                custos_etapas[dest]["mao_de_obra"] += float(c_data.get("mao_de_obra") or 0.0)
+                custos_etapas[dest]["total"] += float(c_data.get("total") or 0.0)
+            else:
+                tot_item = float(c_data.get("total") or 0.0)
+                projetado_fora.append({
+                    "codigo": cod_origem,
+                    "descricao": c_data.get("descricao", ""),
+                    "total": tot_item
+                })
+                total_fora += tot_item
+
+    etapas_out = []
+    for cod, b_item in sorted(budget_items.items()):
+        if int(b_item.get("level") or 0) != 5:
+            continue
+
+        l_tasks = links_by_l5.get(cod, [])
+        t_starts = []
+        t_ends = []
+        pts_map: Dict[str, float] = {}
+
+        for lk in l_tasks:
+            t_id = str(lk.get("task_id") or lk.get("id"))
+            t_data = tasks.get(t_id) or {}
+            s_d = t_data.get("start")
+            f_d = t_data.get("finish")
+            if s_d:
+                t_starts.append(str(s_d)[:10])
+            if f_d:
+                t_ends.append(str(f_d)[:10])
+
+            for d_str, d_val in t_data.get("daily", {}).items():
+                m_str = str(d_str)[:7]
+                pts_map[m_str] = pts_map.get(m_str, 0.0) + float(d_val or 0.0)
+
+        dt_ini = min(t_starts) if t_starts else proj_start
+        dt_fim = max(t_ends) if t_ends else proj_end
+        pontos_mensais = [{"data": f"{m}-01", "previsto": val} for m, val in sorted(pts_map.items())]
+
+        if cod in custos_etapas:
+            c_mat = round(custos_etapas[cod]["material"], 2)
+            c_mo = round(custos_etapas[cod]["mao_de_obra"], 2)
+            c_tot = round(custos_etapas[cod]["total"], 2)
+        else:
+            c_tot = float(b_item.get("total_price") or 0.0)
+            c_mat = round(c_tot * 0.6, 2)
+            c_mo = round(c_tot - c_mat, 2)
+
+        etapas_out.append({
+            "codigo_etapa": cod,
+            "nome": b_item.get("description", ""),
+            "nivel": 5,
+            "data_inicio": dt_ini,
+            "data_fim": dt_fim,
+            "custo_material": c_mat,
+            "custo_mao_obra": c_mo,
+            "custo_total": c_tot,
+            "pontos_mensais": pontos_mensais
+        })
+
+    return etapas_out, {
+        "projetado_fora": projetado_fora,
+        "total_fora": round(total_fora, 2),
+        "tem_custo_projetado": bool(cp_itens),
+        "total_custo_projetado": round(sum(e["custo_total"] for e in etapas_out) + total_fora, 2)
+    }, curvas_dados
+
+
+@router.get("/{project_id}/curvas-dados")
+def get_curvas_dados_endpoint(project_id: str):
+    """Retorna os dados consolidados das Curvas Físico-Financeiras, parâmetros e árvore analítica."""
+    proj_data = _get_project_data(project_id)
+    if not proj_data:
+        raise HTTPException(status_code=404, detail=f"Obra '{project_id}' não encontrada.")
+
+    etapas, cp_info, curvas_dados = _build_etapas_for_curvas(project_id, proj_data)
+    stage_configs = load_curvas_config(project_id, proj_data.get("budget_items", {}))
+
+    params_obra = {
+        "dias_antecedencia_padrao": 10,
+        "prazo_pagamento_padrao_dias": 28,
+        "dia_corte_medicao_mo": 20,
+        "dia_pagamento_mo": 5,
+        "retencao_mo_ativa": False,
+        "retencao_mo_percentual": 5.0,
+        "data_fim_obra": str(proj_data.get("end_date") or "")[:10]
+    }
+    if "padrao" in stage_configs:
+        pad = stage_configs["padrao"]
+        params_obra["dias_antecedencia_padrao"] = pad.get("anticipation_days", 10)
+        params_obra["prazo_pagamento_padrao_dias"] = int(pad.get("payment_terms", 28)) if str(pad.get("payment_terms", "")).isdigit() else 28
+        params_obra["dia_pagamento_mo"] = pad.get("labor_payment_day", 5)
+
+    resultado = calcular_curvas_financeiras(
+        etapas=etapas,
+        parametros_obra=params_obra,
+        parametros_etapas=stage_configs,
+        projetado_fora=cp_info["total_fora"]
+    )
+
+    b_items = proj_data.get("budget_items", {})
+    niveis1_map = {}
+    for cod, item in b_items.items():
+        n1 = nivel1_do_codigo(cod)
+        if n1:
+            if n1 not in niveis1_map:
+                desc = item.get("description", "") if int(item.get("level") or 0) == 1 else f"Nível {n1}"
+                niveis1_map[n1] = {"codigo": n1, "nome": desc, "total": 0.0, "considerado": True}
+            if int(item.get("level") or 0) == 5:
+                niveis1_map[n1]["total"] += float(item.get("total_price") or 0.0)
+
+    etapas_hierarquia = [
+        {"codigo": cod, "nome": item.get("description", ""), "level": int(item.get("level") or 1)}
+        for cod, item in sorted(b_items.items()) if int(item.get("level") or 1) in (1, 2, 3, 4)
+    ]
+
+    return {
+        "ok": True,
+        "project_id": project_id,
+        "parametros_obra": params_obra,
+        "stage_configs": list(stage_configs.values()),
+        "custo_projetado_info": cp_info,
+        "niveis1": sorted(list(niveis1_map.values()), key=lambda x: x["codigo"]),
+        "etapasHierarquia": etapas_hierarquia,
+        "vinculos": curvas_dados.get("vinculos", {}),
+        "tem_incorrido": bool(curvas_dados.get("incorrido")),
+        "tem_pagamentos": bool(curvas_dados.get("pagamentos")),
+        **resultado
+    }
+
+
+@router.get("/{project_id}/curvas-realizado")
+def get_curvas_realizado_endpoint(project_id: str, corte: Optional[str] = None):
+    """Retorna os dados da curva de Realizado + Projeção calculada a partir do mês de corte."""
+    proj_data = _get_project_data(project_id)
+    if not proj_data:
+        raise HTTPException(status_code=404, detail=f"Obra '{project_id}' não encontrada.")
+
+    etapas, cp_info, curvas_dados = _build_etapas_for_curvas(project_id, proj_data)
+    stage_configs = load_curvas_config(project_id, proj_data.get("budget_items", {}))
+
+    corte_final = corte or datetime.date.today().strftime("%Y-%m")
+    incorrido = curvas_dados.get("incorrido") or []
+    if isinstance(incorrido, dict) and "itens" in incorrido:
+        incorrido = incorrido["itens"]
+    pagamentos = curvas_dados.get("pagamentos") or {}
+
+    resultado = projetar_realizado(
+        etapas=etapas,
+        parametros_etapas=stage_configs,
+        corte=corte_final,
+        realizado=incorrido,
+        pagamentos=pagamentos,
+        projetado_fora=cp_info["total_fora"]
+    )
+
+    avisos = []
+    if not pagamentos:
+        avisos.append("Planilha de pagamentos (Conciliação Financeira) não carregada: o desembolso financeiro é estimado pelas regras de pagamento.")
+    if not incorrido:
+        avisos.append("Planilha de Incorrido (Análise do Realizado) não carregada: competência realizada está zerada.")
+    if cp_info["total_fora"] > 0:
+        avisos.append(f"R$ {cp_info['total_fora']:,.2f} do custo projetado está fora do cronograma (sem etapa nível 5 correspondente).")
+
+    return {
+        "ok": True,
+        "project_id": project_id,
+        "corte": corte_final,
+        "avisos": avisos,
+        **resultado
+    }
+
+
+@router.post("/{project_id}/curvas-importar-custo-projetado")
+async def importar_custo_projetado(project_id: str, file: UploadFile = File(...)):
+    """Faz upload da planilha de Custo Projetado e atualiza a base orçamentária do projeto."""
+    content = await file.read()
+    try:
+        parsed = parse_custo_projetado_excel(content)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao processar planilha de Custo Projetado: {e}")
+
+    if not parsed.get("itens"):
+        raise HTTPException(status_code=400, detail="Nenhum item válido encontrado na planilha.")
+
+    save_custo_projetado_data(project_id, parsed)
+    return {
+        "status": "success",
+        "message": f"Custo Projetado importado com sucesso! Total: R$ {parsed['total']:,.2f} em {len(parsed['itens'])} etapas.",
+        "total": parsed["total"],
+        "total_mat": parsed["total_mat"],
+        "total_mo": parsed["total_mo"],
+        "count": len(parsed["itens"])
+    }
+
+
+@router.post("/{project_id}/curvas-importar-incorrido")
+async def importar_incorrido(project_id: str, file: UploadFile = File(...)):
+    """Faz upload da planilha de Incorrido / Análise do Realizado."""
+    content = await file.read()
+    try:
+        parsed = parse_incorrido_excel(content)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao processar planilha de Incorrido: {e}")
+
+    if not parsed:
+        raise HTTPException(status_code=400, detail="Nenhum lançamento válido encontrado na planilha.")
+
+    save_incorrido_data(project_id, parsed)
+    total_val = round(sum(p.get("valor", 0.0) for p in parsed), 2)
+    return {
+        "status": "success",
+        "message": f"Incorrido importado com sucesso! {len(parsed)} lançamentos (Total: R$ {total_val:,.2f}).",
+        "count": len(parsed),
+        "total": total_val
+    }
+
+
+@router.post("/{project_id}/curvas-importar-pagamentos")
+async def importar_pagamentos(project_id: str, file: UploadFile = File(...)):
+    """Faz upload da planilha de Conciliação Financeira / Pagamentos (Mega)."""
+    content = await file.read()
+    try:
+        parsed = parse_conciliacao_financeira_excel(content)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao processar planilha de Conciliação Financeira: {e}")
+
+    if not parsed:
+        raise HTTPException(status_code=400, detail="Nenhuma AP encontrada na planilha.")
+
+    save_pagamentos_data(project_id, parsed)
+    total_pago = sum(sum(p.get("pago", 0.0) for p in parcs) for parcs in parsed.values())
+    return {
+        "status": "success",
+        "message": f"Conciliação Financeira importada com sucesso! {len(parsed)} APs conciliadas (Total Pago: R$ {total_pago:,.2f}).",
+        "aps_count": len(parsed),
+        "total_pago": round(total_pago, 2)
+    }
+
+
+@router.post("/{project_id}/curvas-vinculos")
+def salvar_curvas_vinculo_endpoint(project_id: str, req: CurvasVinculoRequest):
+    """Salva ou remove o vínculo manual entre código externo e etapa do cronograma."""
+    vincs = save_curvas_vinculo_data(project_id, req.codigo_origem, req.codigo_destino, req.remover or False)
+    return {"status": "success", "vinculos": vincs}
+
+
+@router.get("/{project_id}/curvas-versoes")
+def get_curvas_versoes_endpoint(project_id: str):
+    """Lista as versões salvas das curvas."""
+    return {"status": "success", "versoes": listar_versoes_curvas(project_id)}
+
+
+@router.post("/{project_id}/curvas-versoes")
+def post_curvas_versao_endpoint(project_id: str, req: CurvasVersaoRequest):
+    """Salva uma versão congelada do cálculo atual das curvas."""
+    proj_data = _get_project_data(project_id)
+    etapas, cp_info, _ = _build_etapas_for_curvas(project_id, proj_data)
+    stage_configs = load_curvas_config(project_id, proj_data.get("budget_items", {}))
+    calc_res = calcular_curvas_financeiras(etapas=etapas, parametros_etapas=stage_configs)
+    nova = salvar_versao_curvas(project_id, req.nome, calc_res)
+    return {"status": "success", "versao": nova}
+
+
+@router.delete("/{project_id}/curvas-versoes/{versao_id}")
+def delete_curvas_versao_endpoint(project_id: str, versao_id: str):
+    """Exclui uma versão salva."""
+    excluir_versao_curvas(project_id, versao_id)
+    return {"status": "success"}
+
+
+@router.get("/{project_id}/curvas-templates/custo-projetado")
+def download_template_custo_projetado(project_id: str):
+    """Baixa o modelo Excel para preenchimento do Custo Projetado."""
+    excel_bytes = generate_custo_projetado_template()
+    return StreamingResponse(
+        io.BytesIO(excel_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=Modelo_Custo_Projetado_{project_id}.xlsx"}
+    )
+
+
+@router.get("/{project_id}/curvas-templates/incorrido")
+def download_template_incorrido(project_id: str):
+    """Baixa o modelo Excel para preenchimento do Incorrido / Análise do Realizado."""
+    excel_bytes = generate_incorrido_template()
+    return StreamingResponse(
+        io.BytesIO(excel_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=Modelo_Incorrido_Realizado_{project_id}.xlsx"}
+    )
+
+
+@router.get("/{project_id}/curvas-templates/conciliacao")
+def download_template_conciliacao(project_id: str):
+    """Baixa o modelo Excel para preenchimento da Conciliação Financeira (Mega)."""
+    excel_bytes = generate_conciliacao_template()
+    return StreamingResponse(
+        io.BytesIO(excel_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=Modelo_Conciliacao_Financeira_{project_id}.xlsx"}
+    )
+
 

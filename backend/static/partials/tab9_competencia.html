@@ -6,21 +6,89 @@
         <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div class="flex items-center space-x-2">
-              <h3 class="font-bold text-slate-900 text-xs">Curva de Competência Contábil (Emissão de Notas Fiscais)</h3>
-              <span class="text-[10px] px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full font-bold">Lançamentos Contábeis</span>
+              <h3 class="font-bold text-slate-900 text-xs">Curva de Competência Contábil & Financeira Avançada</h3>
+              <span class="text-[10px] px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full font-bold">Piemonte Finance</span>
+              <template x-if="curvasDados?.custo_projetado_info?.tem_custo_projetado">
+                <span class="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full font-bold">Custo Projetado Ativo</span>
+              </template>
             </div>
-            <p class="text-[10px] text-slate-500">Mão de obra no mês da medição (ciclo 21 a 20) + Material com faturamento na entrega em obra (dias de antecedência / lotes)</p>
+            <p class="text-[10px] text-slate-500">Mão de obra com medição (21 a 20) e pgto no dia 5 + Material com antecedência e faturamento na entrega</p>
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
+            <!-- Botão Importar Dados (Custo Projetado, Incorrido, Pagamentos) -->
+            <button 
+              @click="openCurvasImportModal()" 
+              class="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg transition shadow-xs">
+              <i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i>
+              <span>Importar Dados</span>
+            </button>
+
             <!-- Botão de Configuração de Prazos e Insumos -->
             <button 
               @click="openConfigCurvasModal()" 
               class="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-700 transition shadow-xs">
               <i data-lucide="sliders" class="w-3.5 h-3.5 text-blue-400"></i>
-              <span>Configurar Prazos & Insumos</span>
+              <span>Prazos & Insumos</span>
             </button>
 
+            <!-- Botão Vínculos Manuais -->
+            <button 
+              @click="openCurvasVinculosModal()" 
+              class="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-700 transition shadow-xs">
+              <i data-lucide="link-2" class="w-3.5 h-3.5 text-indigo-400"></i>
+              <span>Vínculos</span>
+            </button>
+
+            <!-- Botão Salvar Versão -->
+            <button 
+              @click="promptSalvarVersaoCurvas()" 
+              class="flex items-center space-x-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-300 transition">
+              <i data-lucide="camera" class="w-3.5 h-3.5 text-purple-600"></i>
+              <span>Versão</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sub-View Navigator Pills -->
+        <div class="flex items-center space-x-1 bg-white border border-slate-200 p-1 rounded-xl shadow-2xs overflow-x-auto text-xs">
+          <button 
+            @click="curvasSubView = 'sintetica'"
+            :class="curvasSubView === 'sintetica' ? 'bg-blue-600 text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+            class="px-3 py-1.5 rounded-lg transition flex items-center space-x-1.5 shrink-0">
+            <i data-lucide="table" class="w-3.5 h-3.5"></i>
+            <span>Planilha Mensal Sintética</span>
+          </button>
+          <button 
+            @click="curvasSubView = 'realizado'; carregarRealizadoProjecao()"
+            :class="curvasSubView === 'realizado' ? 'bg-blue-600 text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+            class="px-3 py-1.5 rounded-lg transition flex items-center space-x-1.5 shrink-0">
+            <i data-lucide="split" class="w-3.5 h-3.5"></i>
+            <span>Realizado + Projeção</span>
+          </button>
+          <button 
+            @click="curvasSubView = 'grafico'; renderCurvasChart()"
+            :class="curvasSubView === 'grafico' ? 'bg-blue-600 text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+            class="px-3 py-1.5 rounded-lg transition flex items-center space-x-1.5 shrink-0">
+            <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
+            <span>Gráfico Curva S Tríplice</span>
+          </button>
+          <button 
+            @click="curvasSubView = 'analitica'"
+            :class="curvasSubView === 'analitica' ? 'bg-blue-600 text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+            class="px-3 py-1.5 rounded-lg transition flex items-center space-x-1.5 shrink-0">
+            <i data-lucide="workflow" class="w-3.5 h-3.5"></i>
+            <span>Rastreio & Analítica</span>
+          </button>
+        </div>
+
+        <!-- ============================================================= -->
+        <!-- SUB-VIEW 1: PLANILHA MENSAL SINTÉTICA (TREE EAP) -->
+        <!-- ============================================================= -->
+        <div x-show="curvasSubView === 'sintetica'" class="space-y-4">
+          
+          <!-- Quick Filters Bar -->
+          <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
             <!-- Level Filter Quick Buttons -->
             <div class="flex items-center space-x-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-semibold">
               <span class="text-[10px] text-slate-400 px-1 uppercase font-bold">Nível:</span>
@@ -78,111 +146,404 @@
               </button>
             </div>
           </div>
-        </div>
 
-        <!-- Summary KPI Cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs">
-            <span class="text-[10px] uppercase font-bold text-slate-400">Orçamento Total</span>
-            <div class="text-base font-extrabold text-slate-800 mt-0.5" x-text="formatCurrency(replanResult?.total_budget)"></div>
-            <div class="text-[10px] text-slate-500 mt-0.5">Base EAP fechada</div>
+          <!-- Summary KPI Cards -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs">
+              <span class="text-[10px] uppercase font-bold text-slate-400">Orçamento Fechado</span>
+              <div class="text-base font-extrabold text-slate-800 mt-0.5" x-text="formatCurrency(replanResult?.total_budget)"></div>
+              <div class="text-[10px] text-slate-500 mt-0.5">Base EAP</div>
+            </div>
+            <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs">
+              <span class="text-[10px] uppercase font-bold text-blue-600">Competência Projetada</span>
+              <div class="text-base font-extrabold text-blue-700 mt-0.5" x-text="formatCurrency(level1CompRow?.total)"></div>
+              <div class="text-[10px] text-blue-500 mt-0.5">100% faturamento previsto</div>
+            </div>
+            <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs">
+              <span class="text-[10px] uppercase font-bold text-amber-600">Material (NF na Entrega)</span>
+              <div class="text-base font-extrabold text-amber-700 mt-0.5" x-text="formatCurrency(level1CompRow?.total_mat)"></div>
+              <div class="text-[10px] text-amber-600 mt-0.5" x-text="level1CompRow?.total ? ((level1CompRow.total_mat / level1CompRow.total)*100).toFixed(1) + '% do total' : '-'"></div>
+            </div>
+            <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs">
+              <span class="text-[10px] uppercase font-bold text-emerald-600">Mão de Obra (Medição Mês)</span>
+              <div class="text-base font-extrabold text-emerald-700 mt-0.5" x-text="formatCurrency(level1CompRow?.total_mo)"></div>
+              <div class="text-[10px] text-emerald-600 mt-0.5" x-text="level1CompRow?.total ? ((level1CompRow.total_mo / level1CompRow.total)*100).toFixed(1) + '% do total' : '-'"></div>
+            </div>
           </div>
-          <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs">
-            <span class="text-[10px] uppercase font-bold text-blue-600">Competência Projetada</span>
-            <div class="text-base font-extrabold text-blue-700 mt-0.5" x-text="formatCurrency(level1CompRow?.total)"></div>
-            <div class="text-[10px] text-blue-500 mt-0.5">100% faturamento previsto</div>
-          </div>
-          <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs">
-            <span class="text-[10px] uppercase font-bold text-amber-600">Material (NF na Entrega)</span>
-            <div class="text-base font-extrabold text-amber-700 mt-0.5" x-text="formatCurrency(level1CompRow?.total_mat)"></div>
-            <div class="text-[10px] text-amber-600 mt-0.5" x-text="level1CompRow?.total ? ((level1CompRow.total_mat / level1CompRow.total)*100).toFixed(1) + '% do total' : '-'"></div>
-          </div>
-          <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs">
-            <span class="text-[10px] uppercase font-bold text-emerald-600">Mão de Obra (Medição Mês)</span>
-            <div class="text-base font-extrabold text-emerald-700 mt-0.5" x-text="formatCurrency(level1CompRow?.total_mo)"></div>
-            <div class="text-[10px] text-emerald-600 mt-0.5" x-text="level1CompRow?.total ? ((level1CompRow.total_mo / level1CompRow.total)*100).toFixed(1) + '% do total' : '-'"></div>
-          </div>
-        </div>
 
-        <!-- Main EAP Table -->
-        <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
-          <div class="overflow-x-auto max-h-[600px] 2xl:max-h-[750px] scrollbar-thin">
-            <table class="w-full text-left table-compact border-separate border-spacing-0">
-              <thead class="bg-slate-900 text-white sticky top-0 z-20">
-                <!-- Row 1: Titles -->
-                <tr class="h-[34px]">
-                  <th class="py-1 px-2 w-10 min-w-[40px] max-w-[40px] text-center border-b border-r border-slate-800 sticky top-0 left-0 z-40 bg-slate-900 h-[34px] box-border">Nív</th>
-                  <th class="py-1 px-2 w-28 min-w-[110px] max-w-[110px] border-b border-r border-slate-800 sticky top-0 left-[40px] z-40 bg-slate-900 h-[34px] box-border">Código</th>
-                  <th class="py-1 px-3 w-[300px] min-w-[300px] max-w-[300px] border-b border-r border-slate-800 sticky top-0 left-[150px] z-40 bg-slate-900 h-[34px] box-border">Descrição EAP</th>
-                  <th class="py-1 px-2 w-28 min-w-[110px] max-w-[110px] text-right border-b border-r border-slate-800 sticky top-0 left-[450px] z-40 bg-slate-900 h-[34px] box-border">Orçamento</th>
-                  <th class="py-1 px-2 w-20 min-w-[80px] max-w-[80px] text-right border-b border-r border-slate-800 text-blue-300 sticky top-0 left-[560px] z-40 bg-slate-900 sticky-shadow-header-r h-[34px] box-border">% Obra</th>
-                  
-                  <template x-for="c in activeCyclesList" :key="c.num">
-                    <th class="py-1 px-2 text-right min-w-[85px] border-b border-r border-slate-800 sticky top-0 z-30 bg-slate-900 h-[34px] box-border">
-                      <div class="flex items-center justify-end space-x-1">
-                        <span class="block font-bold text-[11px]" x-text="compViewMode === 'pct' ? c.period_label : (c.period_label + ' (R$)')"></span>
-                      </div>
-                    </th>
-                  </template>
-                  
-                  <th class="py-1 px-2 text-right min-w-[95px] bg-slate-800 border-b border-slate-800 sticky top-0 z-30 h-[34px] box-border" x-text="compViewMode === 'pct' ? 'Total (%)' : 'Total (R$)'"></th>
-                </tr>
-
-                <!-- Row 2: Level 1 Totalizer (Pinned) -->
-                <tr class="h-8">
-                  <th class="py-0.5 px-2 text-center border-b border-r border-neutral-800 sticky top-[34px] left-0 z-35 sticky-level-1 w-10 min-w-[40px] max-w-[40px] font-bold h-8 box-border">1</th>
-                  <th class="py-0.5 px-2 font-mono text-[10px] border-b border-r border-neutral-800 sticky top-[34px] left-[40px] z-35 sticky-level-1 w-28 min-w-[110px] max-w-[110px] font-bold h-8 box-border text-left" x-text="level1CompRow?.code || '1'"></th>
-                  <th class="py-0.5 px-3 border-b border-r border-neutral-800 sticky top-[34px] left-[150px] z-35 sticky-level-1 w-[300px] min-w-[300px] max-w-[300px] font-bold h-8 box-border text-left">
-                    <div class="truncate" x-text="level1CompRow?.description || 'Platea 19 / Total Geral da Obra'"></div>
-                  </th>
-                  <th class="py-0.5 px-2 text-right border-b border-r border-neutral-800 sticky top-[34px] left-[450px] z-35 sticky-level-1 w-28 min-w-[110px] max-w-[110px] font-bold h-8 box-border" x-text="formatCurrency(level1CompRow?.budget || replanResult?.total_budget)"></th>
-                  <th class="py-0.5 px-2 text-right border-b border-r border-neutral-800 sticky top-[34px] left-[560px] z-35 sticky-level-1 w-20 min-w-[80px] max-w-[80px] font-bold text-emerald-300 sticky-shadow-header-r h-8 box-border">100.00%</th>
-                  
-                  <template x-for="c in activeCyclesList" :key="c.num">
-                    <th class="py-0.5 px-2 text-right min-w-[85px] border-b border-r border-neutral-800 sticky top-[34px] z-25 bg-black text-white font-bold h-8 box-border"
-                        x-text="getCompCellValue(level1CompRow, c.num)"></th>
-                  </template>
-
-                  <th class="py-0.5 px-2 text-right min-w-[95px] border-b border-neutral-800 sticky top-[34px] z-25 bg-neutral-900 text-blue-300 font-bold h-8 box-border"
-                      x-text="getCompCellTotal(level1CompRow)"></th>
-                </tr>
-              </thead>
-
-              <tbody class="divide-y divide-slate-200">
-                <template x-for="row in filteredCompRows" :key="row.code">
-                  <tr class="group" :class="getLevelRowClass(row.level)">
-                    <td class="py-0.5 px-2 text-center border-b border-r sticky left-0 z-10 w-10 min-w-[40px] max-w-[40px]" 
-                        :class="getLevelStickyClass(row.level)"
-                        x-text="row.level"></td>
-                    <td class="py-0.5 px-2 font-mono text-[10px] border-b border-r sticky left-[40px] z-10 w-28 min-w-[110px] max-w-[110px]" 
-                        :class="getLevelStickyClass(row.level)"
-                        x-text="row.code"></td>
-                    <td class="py-0.5 px-3 border-b border-r sticky left-[150px] z-10 w-[300px] min-w-[300px] max-w-[300px]" 
-                        :class="getLevelStickyClass(row.level)"
-                        :style="'padding-left: ' + ((row.level-1)*12 + 8) + 'px'">
-                      <div class="truncate" :title="row.description" x-text="row.description"></div>
-                    </td>
-                    <td class="py-0.5 px-2 text-right border-b border-r font-semibold sticky left-[450px] z-10 w-28 min-w-[110px] max-w-[110px]" 
-                        :class="getLevelStickyClass(row.level)"
-                        x-text="formatCurrency(row.budget)"></td>
-                    <td class="py-0.5 px-2 text-right border-b border-r font-bold sticky left-[560px] z-10 w-20 min-w-[80px] max-w-[80px] sticky-shadow-r" 
-                        :class="[getLevelStickyClass(row.level), row.level <= 3 ? 'text-emerald-300' : 'text-blue-700']"
-                        x-text="((row.budget / replanResult?.total_budget) * 100).toFixed(2) + '%'"></td>
-
+          <!-- Main EAP Table -->
+          <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+            <div class="overflow-x-auto max-h-[600px] 2xl:max-h-[750px] scrollbar-thin">
+              <table class="w-full text-left table-compact border-separate border-spacing-0">
+                <thead class="bg-slate-900 text-white sticky top-0 z-20">
+                  <tr class="h-[34px]">
+                    <th class="py-1 px-2 w-10 min-w-[40px] max-w-[40px] text-center border-b border-r border-slate-800 sticky top-0 left-0 z-40 bg-slate-900 h-[34px] box-border">Nív</th>
+                    <th class="py-1 px-2 w-28 min-w-[110px] max-w-[110px] border-b border-r border-slate-800 sticky top-0 left-[40px] z-40 bg-slate-900 h-[34px] box-border">Código</th>
+                    <th class="py-1 px-3 w-[300px] min-w-[300px] max-w-[300px] border-b border-r border-slate-800 sticky top-0 left-[150px] z-40 bg-slate-900 h-[34px] box-border">Descrição EAP</th>
+                    <th class="py-1 px-2 w-28 min-w-[110px] max-w-[110px] text-right border-b border-r border-slate-800 sticky top-0 left-[450px] z-40 bg-slate-900 h-[34px] box-border">Orçamento</th>
+                    <th class="py-1 px-2 w-20 min-w-[80px] max-w-[80px] text-right border-b border-r border-slate-800 text-blue-300 sticky top-0 left-[560px] z-40 bg-slate-900 sticky-shadow-header-r h-[34px] box-border">% Obra</th>
+                    
                     <template x-for="c in activeCyclesList" :key="c.num">
-                      <td class="py-0.5 px-2 text-right border-b border-r"
-                          x-text="getCompCellValue(row, c.num)">
-                      </td>
+                      <th class="py-1 px-2 text-right min-w-[85px] border-b border-r border-slate-800 sticky top-0 z-30 bg-slate-900 h-[34px] box-border">
+                        <div class="flex items-center justify-end space-x-1">
+                          <span class="block font-bold text-[11px]" x-text="compViewMode === 'pct' ? c.period_label : (c.period_label + ' (R$)')"></span>
+                        </div>
+                      </th>
+                    </template>
+                    
+                    <th class="py-1 px-2 text-right min-w-[95px] bg-slate-800 border-b border-slate-800 sticky top-0 z-30 h-[34px] box-border" x-text="compViewMode === 'pct' ? 'Total (%)' : 'Total (R$)'"></th>
+                  </tr>
+
+                  <!-- Row 2: Level 1 Totalizer (Pinned) -->
+                  <tr class="h-8">
+                    <th class="py-0.5 px-2 text-center border-b border-r border-neutral-800 sticky top-[34px] left-0 z-35 sticky-level-1 w-10 min-w-[40px] max-w-[40px] font-bold h-8 box-border">1</th>
+                    <th class="py-0.5 px-2 font-mono text-[10px] border-b border-r border-neutral-800 sticky top-[34px] left-[40px] z-35 sticky-level-1 w-28 min-w-[110px] max-w-[110px] font-bold h-8 box-border text-left" x-text="level1CompRow?.code || '1'"></th>
+                    <th class="py-0.5 px-3 border-b border-r border-neutral-800 sticky top-[34px] left-[150px] z-35 sticky-level-1 w-[300px] min-w-[300px] max-w-[300px] font-bold h-8 box-border text-left">
+                      <div class="truncate" x-text="level1CompRow?.description || 'Platea 19 / Total Geral da Obra'"></div>
+                    </th>
+                    <th class="py-0.5 px-2 text-right border-b border-r border-neutral-800 sticky top-[34px] left-[450px] z-35 sticky-level-1 w-28 min-w-[110px] max-w-[110px] font-bold h-8 box-border" x-text="formatCurrency(level1CompRow?.budget || replanResult?.total_budget)"></th>
+                    <th class="py-0.5 px-2 text-right border-b border-r border-neutral-800 sticky top-[34px] left-[560px] z-35 sticky-level-1 w-20 min-w-[80px] max-w-[80px] font-bold text-emerald-300 sticky-shadow-header-r h-8 box-border">100.00%</th>
+                    
+                    <template x-for="c in activeCyclesList" :key="c.num">
+                      <th class="py-0.5 px-2 text-right min-w-[85px] border-b border-r border-neutral-800 sticky top-[34px] z-25 bg-black text-white font-bold h-8 box-border"
+                          x-text="getCompCellValue(level1CompRow, c.num)"></th>
                     </template>
 
-                    <td class="py-0.5 px-2 text-right font-bold border-b border-r" 
-                        :class="row.level <= 3 ? 'text-blue-300' : 'text-blue-800'" 
-                        x-text="getCompCellTotal(row)"></td>
+                    <th class="py-0.5 px-2 text-right min-w-[95px] border-b border-neutral-800 sticky top-[34px] z-25 bg-neutral-900 text-blue-300 font-bold h-8 box-border"
+                        x-text="getCompCellTotal(level1CompRow)"></th>
                   </tr>
-                </template>
-              </tbody>
-            </table>
+                </thead>
+
+                <tbody class="divide-y divide-slate-200">
+                  <template x-for="row in filteredCompRows" :key="row.code">
+                    <tr class="group" :class="getLevelRowClass(row.level)">
+                      <td class="py-0.5 px-2 text-center border-b border-r sticky left-0 z-10 w-10 min-w-[40px] max-w-[40px]" 
+                          :class="getLevelStickyClass(row.level)"
+                          x-text="row.level"></td>
+                      <td class="py-0.5 px-2 font-mono text-[10px] border-b border-r sticky left-[40px] z-10 w-28 min-w-[110px] max-w-[110px]" 
+                          :class="getLevelStickyClass(row.level)"
+                          x-text="row.code"></td>
+                      <td class="py-0.5 px-3 border-b border-r sticky left-[150px] z-10 w-[300px] min-w-[300px] max-w-[300px]" 
+                          :class="getLevelStickyClass(row.level)"
+                          :style="'padding-left: ' + ((row.level-1)*12 + 8) + 'px'">
+                        <div class="truncate" :title="row.description" x-text="row.description"></div>
+                      </td>
+                      <td class="py-0.5 px-2 text-right border-b border-r font-semibold sticky left-[450px] z-10 w-28 min-w-[110px] max-w-[110px]" 
+                          :class="getLevelStickyClass(row.level)"
+                          x-text="formatCurrency(row.budget)"></td>
+                      <td class="py-0.5 px-2 text-right border-b border-r font-bold sticky left-[560px] z-10 w-20 min-w-[80px] max-w-[80px] sticky-shadow-r" 
+                          :class="[getLevelStickyClass(row.level), row.level <= 3 ? 'text-emerald-300' : 'text-blue-700']"
+                          x-text="((row.budget / replanResult?.total_budget) * 100).toFixed(2) + '%'"></td>
+
+                      <template x-for="c in activeCyclesList" :key="c.num">
+                        <td class="py-0.5 px-2 text-right border-b border-r"
+                            x-text="getCompCellValue(row, c.num)">
+                        </td>
+                      </template>
+
+                      <td class="py-0.5 px-2 text-right font-bold border-b border-r" 
+                          :class="row.level <= 3 ? 'text-blue-300' : 'text-blue-800'" 
+                          x-text="getCompCellTotal(row)"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
           </div>
+        </div>
+
+        <!-- ============================================================= -->
+        <!-- SUB-VIEW 2: REALIZADO + PROJEÇÃO (CORTE & ESTUDO DE DESVIO) -->
+        <!-- ============================================================= -->
+        <div x-show="curvasSubView === 'realizado'" class="space-y-4">
+          
+          <!-- Control Bar: Cutoff Selector & Refresh -->
+          <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-3 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center space-x-3">
+              <div class="flex items-center space-x-1.5">
+                <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Mês de Corte do Realizado:</label>
+                <input 
+                  type="month" 
+                  x-model="curvasCorte" 
+                  @change="carregarRealizadoProjecao()"
+                  class="bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-xs font-bold text-slate-800 outline-none focus:border-blue-500">
+              </div>
+              <button 
+                @click="carregarRealizadoProjecao()" 
+                class="flex items-center space-x-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded text-xs transition">
+                <i data-lucide="refresh-cw" class="w-3 h-3" :class="isLoadingRealizado ? 'animate-spin' : ''"></i>
+                <span>Recalcular Realizado + Projeção</span>
+              </button>
+            </div>
+
+            <!-- Warning badge -->
+            <template x-if="curvasRealizadoData?.avisos?.length">
+              <div class="flex items-center space-x-1.5 text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-lg text-[11px]">
+                <i data-lucide="alert-triangle" class="w-3.5 h-3.5 shrink-0"></i>
+                <span x-text="curvasRealizadoData.avisos[0]"></span>
+              </div>
+            </template>
+          </div>
+
+          <!-- KPI Cards Grid (8 Cards) -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+            <div class="bg-white rounded-xl p-2.5 border border-slate-200 shadow-2xs">
+              <span class="text-[9px] uppercase font-bold text-slate-400 block truncate">Custo Projetado</span>
+              <div class="text-sm font-extrabold text-slate-800 mt-0.5" x-text="formatCurrency(curvasRealizadoData?.kpis?.custoProjetado)"></div>
+              <div class="text-[9px] text-slate-500 mt-0.5">Base das etapas N5</div>
+            </div>
+
+            <div class="bg-white rounded-xl p-2.5 border border-slate-200 shadow-2xs">
+              <span class="text-[9px] uppercase font-bold text-blue-600 block truncate">Incorrido até Corte</span>
+              <div class="text-sm font-extrabold text-blue-700 mt-0.5" x-text="formatCurrency(curvasRealizadoData?.kpis?.realizadoAteCorte)"></div>
+              <div class="text-[9px] text-blue-500 mt-0.5">Competência real</div>
+            </div>
+
+            <div class="bg-white rounded-xl p-2.5 border border-slate-200 shadow-2xs" :class="(curvasRealizadoData?.kpis?.desvio || 0) > 0 ? 'bg-rose-50/40' : 'bg-emerald-50/40'">
+              <span class="text-[9px] uppercase font-bold block truncate" :class="(curvasRealizadoData?.kpis?.desvio || 0) > 0 ? 'text-rose-600' : 'text-emerald-600'">Desvio Contábil</span>
+              <div class="text-sm font-extrabold mt-0.5" :class="(curvasRealizadoData?.kpis?.desvio || 0) > 0 ? 'text-rose-700' : 'text-emerald-700'" x-text="formatCurrency(curvasRealizadoData?.kpis?.desvio)"></div>
+              <div class="text-[9px] mt-0.5 text-slate-500" x-text="(curvasRealizadoData?.kpis?.desvioPct || 0).toFixed(1) + '% s/ base'"></div>
+            </div>
+
+            <div class="bg-white rounded-xl p-2.5 border border-slate-200 shadow-2xs">
+              <span class="text-[9px] uppercase font-bold text-teal-600 block truncate">Pago até Corte</span>
+              <div class="text-sm font-extrabold text-teal-700 mt-0.5" x-text="formatCurrency(curvasRealizadoData?.kpis?.realizadoFinanceiroAteCorte)"></div>
+              <div class="text-[9px] text-teal-600 mt-0.5">Conciliação APs</div>
+            </div>
+
+            <div class="bg-white rounded-xl p-2.5 border border-slate-200 shadow-2xs" :class="(curvasRealizadoData?.kpis?.abertoVencido || 0) > 0 ? 'bg-amber-50/50' : ''">
+              <span class="text-[9px] uppercase font-bold text-amber-600 block truncate">Aberto Vencido</span>
+              <div class="text-sm font-extrabold text-amber-700 mt-0.5" x-text="formatCurrency(curvasRealizadoData?.kpis?.abertoVencido)"></div>
+              <div class="text-[9px] text-amber-600 mt-0.5">Movido p/ mês seg.</div>
+            </div>
+
+            <div class="bg-white rounded-xl p-2.5 border border-slate-200 shadow-2xs">
+              <span class="text-[9px] uppercase font-bold text-indigo-600 block truncate">Saldo a Projetar</span>
+              <div class="text-sm font-extrabold text-indigo-700 mt-0.5" x-text="formatCurrency(curvasRealizadoData?.kpis?.saldoProjetado)"></div>
+              <div class="text-[9px] text-indigo-500 mt-0.5">Físico restante</div>
+            </div>
+
+            <div class="bg-white rounded-xl p-2.5 border border-slate-200 shadow-2xs" :class="(curvasRealizadoData?.kpis?.excedente || 0) > 0 ? 'bg-rose-50 border-rose-200' : ''">
+              <span class="text-[9px] uppercase font-bold text-rose-600 block truncate">Excedente</span>
+              <div class="text-sm font-extrabold text-rose-700 mt-0.5" x-text="formatCurrency(curvasRealizadoData?.kpis?.excedente)"></div>
+              <div class="text-[9px] text-rose-500 mt-0.5">Real > Projetado</div>
+            </div>
+
+            <div class="bg-white rounded-xl p-2.5 border border-slate-200 shadow-2xs" :class="(curvasRealizadoData?.kpis?.pendente || 0) > 0 ? 'bg-purple-50 border-purple-200' : ''">
+              <span class="text-[9px] uppercase font-bold text-purple-600 block truncate">Pendente s/ Físico</span>
+              <div class="text-sm font-extrabold text-purple-700 mt-0.5" x-text="formatCurrency(curvasRealizadoData?.kpis?.pendente)"></div>
+              <div class="text-[9px] text-purple-500 mt-0.5">Sem execução futura</div>
+            </div>
+          </div>
+
+          <!-- Tabela Comparativa Mensal Realizado x Teórico -->
+          <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+            <div class="px-4 py-2.5 bg-slate-100 border-b border-slate-200 font-bold text-slate-800 text-xs flex items-center justify-between">
+              <span>Quadro Mensal: Realizado + Projeção vs Teórico</span>
+              <span class="text-[11px] text-slate-500 font-normal">Valores em R$</span>
+            </div>
+            <div class="overflow-x-auto max-h-[380px] scrollbar-thin">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead class="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200 sticky top-0 z-10">
+                  <tr>
+                    <th class="p-2.5">Mês</th>
+                    <th class="p-2.5 text-center">Status</th>
+                    <th class="p-2.5 text-right text-blue-700">Comp. Material</th>
+                    <th class="p-2.5 text-right text-blue-700">Comp. Mão de Obra</th>
+                    <th class="p-2.5 text-right font-black text-blue-800 bg-blue-50/50">Competência Total</th>
+                    <th class="p-2.5 text-right text-slate-500">Teórico Comp.</th>
+                    <th class="p-2.5 text-right text-teal-700">Fin. Material</th>
+                    <th class="p-2.5 text-right text-teal-700">Fin. Mão de Obra</th>
+                    <th class="p-2.5 text-right font-black text-teal-800 bg-teal-50/50">Financeiro Total</th>
+                    <th class="p-2.5 text-right text-slate-500">Teórico Fin.</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  <template x-for="s in (curvasRealizadoData?.seriesMensal || [])" :key="s.mes">
+                    <tr class="hover:bg-slate-50" :class="s.realizado ? 'bg-blue-50/10' : ''">
+                      <td class="p-2.5 font-mono font-bold text-slate-800" x-text="s.mes"></td>
+                      <td class="p-2.5 text-center">
+                        <span 
+                          :class="s.realizado ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'" 
+                          class="px-2 py-0.5 rounded-full text-[9px] font-bold"
+                          x-text="s.realizado ? 'Realizado' : 'Projetado'"></span>
+                      </td>
+                      <td class="p-2.5 text-right text-slate-700" x-text="formatCurrency(s.competenciaMaterial)"></td>
+                      <td class="p-2.5 text-right text-slate-700" x-text="formatCurrency(s.competenciaMaoDeObra)"></td>
+                      <td class="p-2.5 text-right font-bold text-blue-800 bg-blue-50/30" x-text="formatCurrency(s.competenciaMensal)"></td>
+                      <td class="p-2.5 text-right text-slate-400" x-text="formatCurrency(s.teoricoCompetenciaMensal)"></td>
+                      <td class="p-2.5 text-right text-slate-700" x-text="formatCurrency(s.financeiroMaterial)"></td>
+                      <td class="p-2.5 text-right text-slate-700" x-text="formatCurrency(s.financeiroMaoDeObra)"></td>
+                      <td class="p-2.5 text-right font-bold text-teal-800 bg-teal-50/30" x-text="formatCurrency(s.financeiroMensal)"></td>
+                      <td class="p-2.5 text-right text-slate-400" x-text="formatCurrency(s.teoricoFinanceiroMensal)"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tabela de Alertas por Etapa (Excedente & Pendente) -->
+          <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+            <div class="px-4 py-2.5 bg-slate-100 border-b border-slate-200 font-bold text-slate-800 text-xs flex items-center justify-between">
+              <span>Quadro de Saldos & Alertas por Etapa Nível 5</span>
+              <span class="text-[11px] text-slate-500 font-normal">Estouros de custo ou saldos sem físico futuro</span>
+            </div>
+            <div class="overflow-x-auto max-h-[350px] scrollbar-thin">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead class="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200 sticky top-0 z-10">
+                  <tr>
+                    <th class="p-2.5">Código</th>
+                    <th class="p-2.5">Descrição da Etapa</th>
+                    <th class="p-2.5 text-right">Custo Projetado</th>
+                    <th class="p-2.5 text-right">Incorrido Real</th>
+                    <th class="p-2.5 text-right">Saldo a Projetar</th>
+                    <th class="p-2.5 text-center">Status / Alerta</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  <template x-for="et in (curvasRealizadoData?.etapas || [])" :key="et.codigo_etapa">
+                    <tr class="hover:bg-slate-50/70">
+                      <td class="p-2.5 font-mono font-bold text-slate-800" x-text="et.codigo_etapa"></td>
+                      <td class="p-2.5 text-slate-700 font-medium" x-text="et.nome"></td>
+                      <td class="p-2.5 text-right font-semibold text-slate-800" x-text="formatCurrency(et.projetado)"></td>
+                      <td class="p-2.5 text-right font-semibold text-blue-700" x-text="formatCurrency(et.realizado)"></td>
+                      <td class="p-2.5 text-right font-bold text-slate-900" x-text="formatCurrency(et.saldoProjetado)"></td>
+                      <td class="p-2.5 text-center">
+                        <template x-if="et.alerta === 'excedente'">
+                          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
+                            Excedente (+ <span x-text="formatCurrency(et.excedente)"></span>)
+                          </span>
+                        </template>
+                        <template x-if="et.alerta === 'pendente'">
+                          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200">
+                            Pendente s/ Físico (<span x-text="formatCurrency(et.pendente)"></span>)
+                          </span>
+                        </template>
+                        <template x-if="!et.alerta">
+                          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">
+                            Regular
+                          </span>
+                        </template>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ============================================================= -->
+        <!-- SUB-VIEW 3: GRÁFICO CURVA S TRÍPLICE -->
+        <!-- ============================================================= -->
+        <div x-show="curvasSubView === 'grafico'" class="space-y-4">
+          <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-4">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center space-x-2">
+                <i data-lucide="trending-up" class="w-4 h-4 text-blue-600"></i>
+                <h4 class="font-bold text-slate-800 text-xs">Comparativo Curva S: Físico vs Competência (Contábil) vs Financeiro (Caixa)</h4>
+              </div>
+              <div class="flex items-center space-x-3 text-xs">
+                <span class="flex items-center space-x-1.5 text-blue-600 font-semibold">
+                  <span class="w-3 h-1 bg-blue-600 rounded"></span>
+                  <span>Competência (Contábil)</span>
+                </span>
+                <span class="flex items-center space-x-1.5 text-teal-600 font-semibold">
+                  <span class="w-3 h-1 bg-teal-600 rounded"></span>
+                  <span>Financeiro (Desembolso)</span>
+                </span>
+              </div>
+            </div>
+            
+            <div class="h-80 sm:h-96 w-full relative">
+              <canvas id="curvasTripleChartCanvas" class="w-full h-full"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================================================= -->
+        <!-- SUB-VIEW 4: RASTREIO & ANALÍTICA DE FLUXOS -->
+        <!-- ============================================================= -->
+        <div x-show="curvasSubView === 'analitica'" class="space-y-4">
+          
+          <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="relative w-full sm:w-72">
+              <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <input 
+                type="text" 
+                x-model="searchAnalitica"
+                placeholder="Buscar por código ou descrição..." 
+                class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs outline-none focus:border-blue-500">
+            </div>
+
+            <div class="flex items-center space-x-2">
+              <span class="text-slate-500 text-[11px]">Tipo:</span>
+              <button 
+                @click="filtroTipoAnalitica = 'TODOS'"
+                :class="filtroTipoAnalitica === 'TODOS' ? 'bg-blue-600 text-white font-bold' : 'bg-slate-100 text-slate-600'"
+                class="px-2.5 py-1 rounded text-[11px] transition">
+                Todos
+              </button>
+              <button 
+                @click="filtroTipoAnalitica = 'MATERIAL'"
+                :class="filtroTipoAnalitica === 'MATERIAL' ? 'bg-amber-600 text-white font-bold' : 'bg-slate-100 text-slate-600'"
+                class="px-2.5 py-1 rounded text-[11px] transition">
+                Material
+              </button>
+              <button 
+                @click="filtroTipoAnalitica = 'MAO_DE_OBRA'"
+                :class="filtroTipoAnalitica === 'MAO_DE_OBRA' ? 'bg-emerald-600 text-white font-bold' : 'bg-slate-100 text-slate-600'"
+                class="px-2.5 py-1 rounded text-[11px] transition">
+                Mão de Obra
+              </button>
+            </div>
+          </div>
+
+          <!-- Tabela Analítica de Eventos e Fluxos -->
+          <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+            <div class="px-4 py-2.5 bg-slate-100 border-b border-slate-200 font-bold text-slate-800 text-xs flex items-center justify-between">
+              <span>Eventos de Desembolso & Rastreio Físico → Entrega → Pagamento</span>
+              <span class="text-[11px] text-slate-500 font-normal">Matriz Analítica</span>
+            </div>
+            <div class="overflow-x-auto max-h-[500px] scrollbar-thin">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead class="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] border-b border-slate-200 sticky top-0 z-10">
+                  <tr>
+                    <th class="p-2.5">Código Etapa</th>
+                    <th class="p-2.5">Descrição</th>
+                    <th class="p-2.5 text-center">Tipo</th>
+                    <th class="p-2.5 text-center">Mês Físico</th>
+                    <th class="p-2.5 text-center text-blue-700">Mês Competência (NF)</th>
+                    <th class="p-2.5 text-center text-teal-700">Mês Financeiro (Pgto)</th>
+                    <th class="p-2.5 text-right">Valor Rateado</th>
+                    <th class="p-2.5">Condição / Motivo</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  <template x-for="(fl, idx) in getFilteredFluxos()" :key="idx">
+                    <tr class="hover:bg-slate-50/80">
+                      <td class="p-2.5 font-mono font-bold text-slate-800" x-text="fl.codigo_etapa"></td>
+                      <td class="p-2.5 text-slate-700 font-medium truncate max-w-xs" x-text="fl.nome"></td>
+                      <td class="p-2.5 text-center">
+                        <span 
+                          :class="fl.tipo === 'MATERIAL' ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-emerald-100 text-emerald-800 border-emerald-200'"
+                          class="px-2 py-0.5 rounded-full text-[9px] font-bold border"
+                          x-text="fl.tipo === 'MATERIAL' ? 'Material' : 'Mão de Obra'"></span>
+                      </td>
+                      <td class="p-2.5 text-center font-mono text-slate-600" x-text="fl.fis || '—'"></td>
+                      <td class="p-2.5 text-center font-mono font-bold text-blue-700 bg-blue-50/20" x-text="fl.comp"></td>
+                      <td class="p-2.5 text-center font-mono font-bold text-teal-700 bg-teal-50/20" x-text="fl.fin"></td>
+                      <td class="p-2.5 text-right font-extrabold text-slate-900" x-text="formatCurrency(fl.valor)"></td>
+                      <td class="p-2.5 text-slate-500 text-[11px]" x-text="fl.mFin || fl.mComp || '—'"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
         </div>
 
       </div>

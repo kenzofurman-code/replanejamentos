@@ -34,6 +34,7 @@ backend/data/cache/
 scratch/
 /test_*.py
 backend/test_api.py
+graphify-out/
 
 
 
